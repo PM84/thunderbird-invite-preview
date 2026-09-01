@@ -169,7 +169,7 @@ async function reconcilePreviews() {
   if (previews.length === 0) {
     return;
   }
-  const references = previews.map(({ calendarId, itemId }) => ({ calendarId, itemId }));
+  const references = previews.map(previewReference);
   const pendingReferences = await messenger.invitationPreview.inspect(references);
   const pendingKeys = new Set(
     pendingReferences.map(reference => JSON.stringify([reference.calendarId, reference.itemId]))
@@ -215,7 +215,7 @@ async function restorePreviewsNow() {
     return;
   }
 
-  const references = previews.map(({ calendarId, itemId }) => ({ calendarId, itemId }));
+  const references = previews.map(previewReference);
   const existingReferences = await messenger.invitationPreview.inspect(references);
   const existingKeys = new Set(
     existingReferences.map(reference =>
@@ -255,4 +255,12 @@ async function restorePreviewsNow() {
   }
 
   await stateStore.replacePreviews(restoredPreviews);
+}
+
+function previewReference({ calendarId, itemId, preferredCalendarId }) {
+  return {
+    calendarId,
+    itemId,
+    preferredCalendarId: preferredCalendarId || null,
+  };
 }

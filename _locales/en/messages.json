@@ -120,10 +120,10 @@
     "message": "Lookback period in days"
   },
   "targetCalendar": {
-    "message": "Preferred calendar"
+    "message": "Fallback calendar"
   },
   "automaticCalendar": {
-    "message": "Automatic (email / default calendar)"
+    "message": "Thunderbird default calendar"
   },
   "calendarUnavailable": {
     "message": "Saved calendar (unavailable)"

@@ -18,7 +18,7 @@ be created with its name, summary, description, category, license, support
 links, privacy policy, screenshots, and Experiment reviewer notes.
 
 1. Sign in to <https://addons.thunderbird.net/developers/>.
-2. Submit `invite-preview-1.0.0.xpi` as a listed add-on.
+2. Submit the current `invite-preview-<version>.xpi` as a listed add-on.
 3. Use the copy in `docs/atn-listing.md` for the listing and reviewer notes.
 4. Select the MPL-2.0 license and add the repository, issue tracker, privacy
    policy, and security contact URLs listed above.

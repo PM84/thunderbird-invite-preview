@@ -14,3 +14,9 @@ MailExtension APIs, and keep all calendar writes behind the existing gateway.
 Behavior changes require focused regression tests. Changes to Thunderbird
 calendar integration or the supported Thunderbird range also require the full
 manual test plan.
+
+All test data must be synthetic. Use only reserved `example.test` email domains,
+generic account and calendar names, and relative fixture paths. Never commit
+real account names, addresses, calendar URLs, profile identifiers, or local user
+paths. The test-data validator enforces the machine-checkable parts of this
+policy.

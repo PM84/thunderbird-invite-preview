@@ -22,7 +22,13 @@ const calendar = {
     },
   },
   getProperty(name) {
-    return name === "calendar-main-default" ? true : null;
+    if (name === "calendar-main-default") {
+      return true;
+    }
+    if (name === "imip.identity.key") {
+      return "identity-1";
+    }
+    return name === "imip.identity" ? { email: "user@example.test" } : null;
   },
   async addItem(item) {
     item.calendar = this;
@@ -31,6 +37,67 @@ const calendar = {
     return item;
   },
 };
+const secondaryCalendar = {
+  id: "calendar-2",
+  name: "Secondary",
+  wrappedJSObject: {
+    mUncachedCalendar: {
+      wrappedJSObject: { mItemInfoCache: {} },
+    },
+  },
+  getProperty(name) {
+    if (name === "imip.identity.key") {
+      return "identity-2";
+    }
+    return name === "imip.identity"
+      ? { email: "user@secondary.example.test" }
+      : null;
+  },
+};
+let inheritedIdentityEmail = "user@secondary.example.test";
+const inheritedIdentityCalendar = {
+  id: "calendar-inherited",
+  name: "Inherited default identity",
+  wrappedJSObject: {
+    mUncachedCalendar: {
+      wrappedJSObject: { mItemInfoCache: {} },
+    },
+  },
+  getProperty(name) {
+    if (name === "imip.identity.key") {
+      return null;
+    }
+    return name === "imip.identity" ? { email: inheritedIdentityEmail } : null;
+  },
+};
+const localCalendar = {
+  id: "calendar-3",
+  name: "Local",
+  getProperty() {
+    throw new Error("calendar properties unavailable");
+  },
+  async getItem(itemId) {
+    return itemId === "event-8" ? createItem(itemId) : null;
+  },
+};
+const cachedCalendar = {
+  id: "calendar-4",
+  name: "Cached",
+  wrappedJSObject: {
+    mUncachedCalendar: {
+      wrappedJSObject: { mItemInfoCache: {} },
+    },
+    mCachedCalendar: {
+      async getItem(itemId) {
+        return itemId === "event-9" ? createItem(itemId) : null;
+      },
+    },
+  },
+  getProperty() {
+    return null;
+  },
+};
+const userCalendars = [calendar];
 
 let receivedItem = createItem("event-1");
 const itipItem = {
@@ -56,10 +123,15 @@ class EventManager {
 const cal = {
   manager: {
     getCalendars() {
-      return previewCalendar ? [calendar, previewCalendar] : [calendar];
+      return previewCalendar
+        ? [...userCalendars, previewCalendar]
+        : [...userCalendars];
     },
     getCalendarById(id) {
-      return id === calendar.id ? calendar : previewCalendar?.id === id ? previewCalendar : null;
+      return (
+        userCalendars.find(userCalendar => userCalendar.id === id) ||
+        (previewCalendar?.id === id ? previewCalendar : null)
+      );
     },
     createCalendar(type) {
       assert.equal(type, "memory");
@@ -142,7 +214,7 @@ const source = await readFile(
 );
 vm.runInNewContext(source, sandbox);
 
-const extensionApi = new sandbox.invitationPreview({ id: "invite-preview@test" });
+const extensionApi = new sandbox.invitationPreview({ id: "invite-preview@example.test" });
 extensionApi.PERSISTENT_EVENTS.onResolved.call(extensionApi, {
   fire: { async: async resolution => resolutions.push(resolution) },
 });
@@ -165,7 +237,7 @@ assert.equal(previewCalendar.getProperty("calendar-main-in-composite"), true);
 assert.equal(previewCalendar.currentItem.getProperty("TRANSP"), "TRANSPARENT");
 assert.equal(
   previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-OWNER"),
-  "invite-preview@test"
+  "invite-preview@example.test"
 );
 assert.equal(previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-SOURCE"), "source-1");
 assert.equal(
@@ -223,7 +295,10 @@ attendee.participationStatus = "ACCEPTED";
 const retryPendingItem = previewCalendar.currentItem;
 calendarObserver.onModifyItem(retryPendingItem.clone(), retryPendingItem);
 await new Promise(resolve => setImmediate(resolve));
-assert.equal(previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-OWNER"), "invite-preview@test");
+assert.equal(
+  previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-OWNER"),
+  "invite-preview@example.test"
+);
 assert.equal(
   previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-TARGET-CALENDAR"),
   calendar.id,
@@ -294,7 +369,7 @@ const pendingCancellationResult = await api.stage("BEGIN:VCALENDAR", {
 });
 assert.equal(pendingCancellationResult.status, "staged");
 itipItem.receivedMethod = "CANCEL";
-cal.manager.getCalendars = () => [previewCalendar];
+userCalendars.length = 0;
 const cancellationResult = await api.stage("BEGIN:VCALENDAR", {
   sourceId: "source-5-cancel",
   preferredCalendarId: null,
@@ -302,6 +377,132 @@ const cancellationResult = await api.stage("BEGIN:VCALENDAR", {
 assert.equal(cancellationResult.status, "cancelled");
 assert.equal(previewCalendar.currentItem, null);
 assert.equal(cleanupCount, 6, "every staging outcome cleans up its iTIP item");
+
+userCalendars.push(inheritedIdentityCalendar, calendar, secondaryCalendar);
+itipItem.receivedMethod = "REQUEST";
+attendee.id = "mailto:user@secondary.example.test";
+attendee.participationStatus = "ACCEPTED";
+receivedItem = createItem("event-6");
+receivedItem.setProperty("X-MOZ-INVITED-ATTENDEE", "mailto:user@example.test");
+const mappedResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-6",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(mappedResult.status, "staged");
+assert.equal(
+  previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-TARGET-CALENDAR"),
+  secondaryCalendar.id,
+  "an explicit email mapping takes precedence over inherited identity and fallback"
+);
+
+itipItem.receivedMethod = "CANCEL";
+await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-6-cancel",
+  preferredCalendarId: null,
+});
+itipItem.receivedMethod = "REQUEST";
+inheritedIdentityEmail = "user@inherited.example.test";
+attendee.id = "mailto:user@inherited.example.test";
+receivedItem = createItem("event-inherited");
+const inheritedMappingResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-inherited",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(inheritedMappingResult.status, "staged");
+assert.equal(
+  previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-TARGET-CALENDAR"),
+  inheritedIdentityCalendar.id,
+  "an inherited identity remains a valid mapping when no explicit mapping matches"
+);
+
+itipItem.receivedMethod = "CANCEL";
+await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-inherited-cancel",
+  preferredCalendarId: null,
+});
+itipItem.receivedMethod = "REQUEST";
+attendee.id = "mailto:user@secondary.example.test";
+receivedItem = createItem("event-7");
+secondaryCalendar.wrappedJSObject.mUncachedCalendar.wrappedJSObject
+  .mItemInfoCache[receivedItem.id] = {};
+const duplicateResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-7",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(duplicateResult.status, "alreadyProcessed");
+assert.equal(duplicateResult.calendarId, secondaryCalendar.id);
+assert.equal(previewCalendar.currentItem, null, "an existing UID is not staged again");
+
+userCalendars.push(localCalendar);
+receivedItem = createItem("event-8");
+const localDuplicateResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-8",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(localDuplicateResult.status, "alreadyProcessed");
+assert.equal(localDuplicateResult.calendarId, localCalendar.id);
+assert.equal(previewCalendar.currentItem, null);
+
+userCalendars.push(cachedCalendar);
+receivedItem = createItem("event-9");
+const coldIndexDuplicateResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-9",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(coldIndexDuplicateResult.status, "alreadyProcessed");
+assert.equal(coldIndexDuplicateResult.calendarId, cachedCalendar.id);
+assert.equal(previewCalendar.currentItem, null);
+
+receivedItem = createItem("event-10");
+const stalePreviewResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-10",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(stalePreviewResult.status, "staged");
+secondaryCalendar.wrappedJSObject.mUncachedCalendar.wrappedJSObject
+  .mItemInfoCache[receivedItem.id] = {};
+const inspectedReferences = await api.inspect([
+  { calendarId: previewCalendar.id, itemId: receivedItem.id },
+]);
+assert.deepEqual(JSON.parse(JSON.stringify(inspectedReferences)), []);
+assert.equal(
+  previewCalendar.currentItem,
+  null,
+  "reconciliation removes a preview whose UID exists in a real calendar"
+);
+
+receivedItem = createItem("event-11");
+const remapResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-11",
+  preferredCalendarId: calendar.id,
+});
+assert.equal(remapResult.status, "staged");
+previewCalendar.currentItem.setProperty(
+  "X-INVITE-PREVIEW-TARGET-CALENDAR",
+  calendar.id
+);
+previewCalendar.currentItem.setProperty(
+  "X-MOZ-INVITED-ATTENDEE",
+  "mailto:user@example.test"
+);
+const remapReference = {
+  calendarId: previewCalendar.id,
+  itemId: receivedItem.id,
+  preferredCalendarId: calendar.id,
+};
+assert.deepEqual(
+  JSON.parse(JSON.stringify(await api.inspect([remapReference]))),
+  [remapReference]
+);
+assert.equal(
+  previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-TARGET-CALENDAR"),
+  secondaryCalendar.id,
+  "reconciliation corrects the target of an existing pending preview"
+);
+assert.equal(
+  previewCalendar.currentItem.getProperty("X-MOZ-INVITED-ATTENDEE"),
+  attendee.id
+);
 
 extensionApi.onShutdown(false);
 
@@ -353,6 +554,9 @@ function createItem(id, initialProperties = new Map()) {
     },
     deleteProperty(name) {
       properties.delete(name);
+    },
+    getAttendees() {
+      return [attendee];
     },
     clone() {
       const clone = createItem(id, properties);

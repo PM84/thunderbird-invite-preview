@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 - 2026-09-01
+
+- Match invitations to the email identity configured on each calendar before
+  using a selected fallback or Thunderbird's default calendar. Explicit
+  calendar identities take precedence over inherited default identities.
+- Detect existing event UIDs across every real calendar and its local cache so
+  history scans do not recreate already accepted events as previews.
+- Enforce synthetic test fixtures using reserved `example.test` identities and
+  reject real email domains, web hosts, and local profile paths during tests.
+
 ## 1.0.0 - 2026-09-01
 
 - Detect inline and attached iTIP requests and cancellations in incoming mail.

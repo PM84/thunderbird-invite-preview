@@ -37,10 +37,10 @@ the invitation is resolved or the pending previews are cleared.
 ## Calendar synchronization and replies
 
 A pending invitation is written to a dedicated local calendar created by the
-add-on. With automatic selection, a target calendar whose configured email
-matches the invited identity is preferred; otherwise Thunderbird's default
-calendar is used to select the response identity. The pending preview is not
-uploaded to that target. After the user accepts or tentatively accepts, Invite
+add-on. A target calendar whose configured email matches the invited identity
+is selected first. If none matches, the configured fallback or Thunderbird's
+default calendar is used. The pending preview is not uploaded to that target.
+After the user accepts or tentatively accepts, Invite
 Preview adds the event to that exact calendar through Thunderbird. A remote
 calendar provider may then synchronize it normally. The local preview is
 removed only after the target accepts the event. A failed transfer is retained
