@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light dark;
+  --accent: #0f766e;
+  --border: color-mix(in srgb, currentColor 20%, transparent);
+  --muted: color-mix(in srgb, currentColor 62%, transparent);
+  --surface-subtle: light-dark(#f1f5f4, #303635);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: light-dark(#17201e, #f1f5f4);
+  font: message-box;
+}
+
+main {
+  max-width: 620px;
+  padding: 20px;
+}
+
+h1 {
+  margin: 0 0 22px;
+  font-size: 20px;
+}
+
+form {
+  display: grid;
+  gap: 20px;
+}
+
+.toggle-row,
+.field {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggle-row {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+}
+
+select,
+input[type="number"] {
+  width: min(310px, 55%);
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: Field;
+  color: FieldText;
+  font: inherit;
+}
+
+input[type="number"] {
+  width: min(120px, 55%);
+}
+
+#status {
+  min-height: 20px;
+  margin: 18px 0 0;
+  color: var(--muted);
+}
+
+@media (max-width: 480px) {
+  .field {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  select,
+  input[type="number"] {
+    width: 100%;
+  }
+}

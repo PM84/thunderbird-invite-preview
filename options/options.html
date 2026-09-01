@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n="settingsTitle"></title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="settingsTitle"></h1>
+      <form>
+        <label class="toggle-row" for="enabled">
+          <span data-i18n="automaticScanning"></span>
+          <input id="enabled" name="enabled" type="checkbox">
+        </label>
+
+        <label class="field" for="history-days">
+          <span data-i18n="historyDays"></span>
+          <input id="history-days" name="historyDays" type="number" min="1" max="3650" step="1" required>
+        </label>
+
+        <label class="field" for="preferred-calendar">
+          <span data-i18n="targetCalendar"></span>
+          <select id="preferred-calendar" name="preferredCalendarId"></select>
+        </label>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

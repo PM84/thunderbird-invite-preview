@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n="extensionName"></title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header>
+      <img src="../assets/icon.svg" alt="" width="36" height="36">
+      <div>
+        <h1 data-i18n="extensionName"></h1>
+        <p id="activity"></p>
+      </div>
+    </header>
+
+    <main>
+      <div class="metric">
+        <span data-i18n="pendingInvitations"></span>
+        <strong id="pending-count">-</strong>
+      </div>
+
+      <button id="scan" type="button" data-i18n="scanDisplayed"></button>
+      <button id="scan-history" class="secondary" type="button" data-i18n="scanHistory"></button>
+      <button id="clear" class="secondary" type="button" data-i18n="clearPreviews"></button>
+      <p id="result" role="status" aria-live="polite"></p>
+    </main>
+
+    <footer>
+      <button id="settings" class="link" type="button" data-i18n="openSettings"></button>
+    </footer>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

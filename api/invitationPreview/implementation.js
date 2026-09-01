@@ -1,0 +1,621 @@
+{
+  const {
+    ExtensionCommon: { EventManager, ExtensionAPIPersistent },
+  } = ChromeUtils.importESModule("resource://gre/modules/ExtensionCommon.sys.mjs");
+  const { cal } = ChromeUtils.importESModule(
+    "resource:///modules/calendar/calUtils.sys.mjs"
+  );
+  const { MailServices } = ChromeUtils.importESModule(
+    "resource:///modules/MailServices.sys.mjs"
+  );
+
+  const OWNER_PROPERTY = "X-INVITE-PREVIEW-OWNER";
+  const SOURCE_PROPERTY = "X-INVITE-PREVIEW-SOURCE";
+  const ORIGINAL_TRANSP_PROPERTY = "X-INVITE-PREVIEW-ORIGINAL-TRANSP";
+  const TARGET_CALENDAR_PROPERTY = "X-INVITE-PREVIEW-TARGET-CALENDAR";
+  const DEFAULT_TRANSP = "__DEFAULT__";
+  const PREVIEW_CALENDAR_ID = "8d2a1473-4f7b-47db-9c71-3e1096609cd1";
+  const PREVIEW_CALENDAR_NAME = "Invite Preview";
+  const PREVIEW_CALENDAR_COLOR = "#7d8790";
+  const TRANSFER_TIMEOUT_MS = 30000;
+
+  this.invitationPreview = class extends ExtensionAPIPersistent {
+    PERSISTENT_EVENTS = {
+      onResolved({ fire }) {
+        const registration = { fire };
+        this.eventFires.add(registration);
+        return {
+          unregister: () => this.eventFires.delete(registration),
+          convert(newFire) {
+            registration.fire = newFire;
+          },
+        };
+      },
+      onTransferPending({ fire }) {
+        const registration = { fire };
+        this.transferFires.add(registration);
+        return {
+          unregister: () => this.transferFires.delete(registration),
+          convert(newFire) {
+            registration.fire = newFire;
+          },
+        };
+      },
+    };
+
+    constructor(extension) {
+      super(extension);
+      this.eventFires = new Set();
+      this.transferFires = new Set();
+      this.cleaningItems = new Set();
+      this.transferringItems = new Set();
+      this.calendarObserver = null;
+    }
+
+    onStartup() {
+      this.startObserver();
+    }
+
+    onShutdown(isAppShutdown) {
+      if (this.calendarObserver) {
+        cal.manager.removeCalendarObserver(this.calendarObserver);
+        this.calendarObserver = null;
+      }
+      this.eventFires.clear();
+      this.transferFires.clear();
+      if (!isAppShutdown) {
+        const previewCalendar = cal.manager.getCalendarById(PREVIEW_CALENDAR_ID);
+        if (previewCalendar) {
+          cal.manager.unregisterCalendar(previewCalendar);
+        }
+        Services.obs.notifyObservers(null, "startupcache-invalidate", null);
+      }
+    }
+
+    startObserver() {
+      if (this.calendarObserver) {
+        return;
+      }
+
+      this.calendarObserver = {
+        QueryInterface: ChromeUtils.generateQI(["calIObserver"]),
+        onStartBatch() {},
+        onEndBatch() {},
+        onLoad() {},
+        onAddItem: item => {
+          void this.handleAddedItem(item);
+        },
+        onError() {},
+        onPropertyChanged() {},
+        onPropertyDeleting() {},
+        onModifyItem: (newItem, oldItem) => {
+          void this.handleModifiedItem(newItem, oldItem);
+        },
+        onDeleteItem: item => {
+          const key = `${item?.calendar?.id}\n${item?.id}`;
+          if (this.isOwnedPreview(item) && !this.cleaningItems.has(key)) {
+            this.emitResolution(item, "REMOVED");
+          }
+        },
+      };
+      cal.manager.addCalendarObserver(this.calendarObserver);
+    }
+
+    isOwnedPreview(item) {
+      return item?.getProperty(OWNER_PROPERTY) === this.extension.id;
+    }
+
+    async handleModifiedItem(newItem, oldItem) {
+      const sourceItem = this.isOwnedPreview(oldItem)
+        ? oldItem
+        : this.isOwnedPreview(newItem)
+          ? newItem
+          : null;
+      if (!sourceItem) {
+        return;
+      }
+
+      const status = participationStatus(newItem);
+      if (!status || status === "NEEDS-ACTION") {
+        return;
+      }
+
+      const key = `${newItem.calendar.id}\n${newItem.id}`;
+      if (this.cleaningItems.has(key)) {
+        return;
+      }
+      await this.finalizeResolvedItem(newItem, sourceItem, status);
+    }
+
+    async finalizeResolvedItem(resolvedItem, sourceItem, status) {
+      const key = `${resolvedItem.calendar.id}\n${resolvedItem.id}`;
+      if (this.cleaningItems.has(key)) {
+        return false;
+      }
+      this.cleaningItems.add(key);
+      try {
+        await this.transferResolvedItem(resolvedItem, sourceItem, status);
+        return true;
+      } catch (error) {
+        console.error("Invite Preview could not move a resolved invitation", error);
+        await preserveTransferMetadata(resolvedItem, sourceItem).catch(metadataError => {
+          console.error("Invite Preview could not preserve a pending transfer", metadataError);
+        });
+        this.emitTransferPending(resolvedItem, status, sourceItem);
+        return false;
+      } finally {
+        this.cleaningItems.delete(key);
+      }
+    }
+
+    async transferResolvedItem(resolvedItem, sourceItem, status) {
+      if (status === "DECLINED") {
+        await resolvedItem.calendar.deleteItem(resolvedItem);
+        this.emitResolution(resolvedItem, status, sourceItem);
+        return;
+      }
+
+      const targetCalendarId = sourceItem.getProperty(TARGET_CALENDAR_PROPERTY);
+      const targetCalendar = cal.manager.getCalendarById(targetCalendarId);
+      if (!targetCalendar || targetCalendar.id === PREVIEW_CALENDAR_ID) {
+        throw new Error("Invitation target calendar is unavailable");
+      }
+
+      const targetItem = resolvedItem.clone();
+      copyPreviewMetadata(targetItem, sourceItem);
+      restoreTransparency(targetItem);
+      targetItem.deleteProperty(TARGET_CALENDAR_PROPERTY);
+      targetItem.calendar = targetCalendar;
+
+      const transferKey = `${targetCalendar.id}\n${targetItem.id}`;
+      this.transferringItems.add(transferKey);
+      try {
+        if (!targetCalendarHasItem(targetCalendar, targetItem.id)) {
+          try {
+            await withTimeout(
+              targetCalendar.addItem(targetItem),
+              TRANSFER_TIMEOUT_MS,
+              "Target calendar operation timed out"
+            );
+          } catch (error) {
+            if (!targetCalendarHasItem(targetCalendar, targetItem.id)) {
+              throw error;
+            }
+          }
+        }
+
+        await resolvedItem.calendar.deleteItem(resolvedItem);
+        this.emitResolution(targetItem, status, sourceItem);
+      } finally {
+        this.transferringItems.delete(transferKey);
+      }
+    }
+
+    async handleAddedItem(item) {
+      if (!item || item.calendar.id === PREVIEW_CALENDAR_ID) {
+        return;
+      }
+      const transferKey = `${item.calendar.id}\n${item.id}`;
+      if (this.transferringItems.has(transferKey)) {
+        return;
+      }
+      const previewCalendar = cal.manager.getCalendarById(PREVIEW_CALENDAR_ID);
+      const previewItem = await previewCalendar?.getItem(item.id);
+      if (
+        !previewItem ||
+        previewItem.getProperty(TARGET_CALENDAR_PROPERTY) !== item.calendar.id
+      ) {
+        return;
+      }
+      const status = participationStatus(previewItem);
+      if (status && status !== "NEEDS-ACTION") {
+        await previewCalendar.deleteItem(previewItem);
+      }
+    }
+
+    emitResolution(item, status, sourceItem = item) {
+      const resolution = {
+        sourceId: sourceItem.getProperty(SOURCE_PROPERTY) || "",
+        calendarId: item.calendar.id,
+        itemId: item.id,
+        participationStatus: status,
+      };
+      for (const registration of this.eventFires) {
+        void registration.fire.async(resolution).catch(() => {});
+      }
+    }
+
+    emitTransferPending(item, status, sourceItem = item) {
+      const transfer = {
+        sourceId: sourceItem.getProperty(SOURCE_PROPERTY) || "",
+        calendarId: item.calendar.id,
+        itemId: item.id,
+        targetCalendarId: sourceItem.getProperty(TARGET_CALENDAR_PROPERTY) || "",
+        participationStatus: status,
+      };
+      for (const registration of this.transferFires) {
+        void registration.fire.async(transfer).catch(() => {});
+      }
+    }
+
+    getAPI(context) {
+      this.startObserver();
+      return {
+        invitationPreview: {
+          listCalendars: async () =>
+            writableCalendars()
+              .filter(calendar => calendar.id !== PREVIEW_CALENDAR_ID)
+              .map(calendar => ({
+              id: calendar.id,
+              name: calendar.name,
+              isDefault: Boolean(calendar.getProperty("calendar-main-default")),
+              })),
+
+          stage: async (icalText, details) => {
+            try {
+              const outcome = await stageInvitation(
+                icalText,
+                details,
+                this.extension.id,
+                this.extension.localeData?.localizeMessage("extensionName") ||
+                  PREVIEW_CALENDAR_NAME
+              );
+              if (!details.participationStatus || !outcome.pending) {
+                return outcome;
+              }
+
+              const previewCalendar = cal.manager.getCalendarById(outcome.calendarId);
+              const previewItem = await previewCalendar?.getItem(outcome.itemId);
+              if (!previewItem) {
+                return result("calendarError");
+              }
+              const transferred = await this.finalizeResolvedItem(
+                previewItem,
+                previewItem,
+                details.participationStatus
+              );
+              return transferred
+                ? result(
+                  "alreadyProcessed",
+                  false,
+                  details.targetCalendarId,
+                  previewItem.id
+                )
+                : result("calendarError", true, previewCalendar.id, previewItem.id);
+            } catch (error) {
+              console.error("Invite Preview could not stage a calendar invitation", error);
+              return result("calendarError");
+            }
+          },
+
+          inspect: async references => {
+            const pending = [];
+            for (const reference of references) {
+              const calendar = cal.manager.getCalendarById(reference.calendarId);
+              const item = await calendar?.getItem(reference.itemId);
+              if (!item || !this.isOwnedPreview(item)) {
+                continue;
+              }
+              const status = participationStatus(item);
+              if (
+                status &&
+                status !== "NEEDS-ACTION" &&
+                (await this.finalizeResolvedItem(item, item, status))
+              ) {
+                continue;
+              }
+              pending.push(reference);
+            }
+            return pending;
+          },
+
+          remove: async (calendarId, itemId) => {
+            const calendar = cal.manager.getCalendarById(calendarId);
+            const item = await calendar?.getItem(itemId);
+            if (!item || !this.isOwnedPreview(item)) {
+              return false;
+            }
+            await calendar.deleteItem(item);
+            return true;
+          },
+
+          onResolved: new EventManager({
+            context,
+            module: "invitationPreview",
+            event: "onResolved",
+            extensionApi: this,
+          }).api(),
+          onTransferPending: new EventManager({
+            context,
+            module: "invitationPreview",
+            event: "onTransferPending",
+            extensionApi: this,
+          }).api(),
+        },
+      };
+    }
+  };
+
+  async function stageInvitation(icalText, details, extensionId, previewCalendarName) {
+    const itipItem = Cc["@mozilla.org/calendar/itip-item;1"].createInstance(
+      Ci.calIItipItem
+    );
+    itipItem.init(icalText);
+
+    try {
+      return await stageItipItem(itipItem, details, extensionId, previewCalendarName);
+    } finally {
+      cal.itip.cleanupItipItem(itipItem);
+    }
+  }
+
+  async function stageItipItem(itipItem, details, extensionId, previewCalendarName) {
+    const method = String(itipItem.receivedMethod || "").toUpperCase();
+    if (method !== "REQUEST" && method !== "CANCEL") {
+      return result("ignored");
+    }
+
+    itipItem.receivedMethod = method;
+    itipItem.responseMethod = method === "REQUEST" ? "REPLY" : method;
+    itipItem.autoResponse = Ci.calIItipItem.NONE;
+    itipItem.isSend = false;
+
+    const items = itipItem.getItemList();
+    if (items.length === 0) {
+      return result("ignored");
+    }
+
+    const previewCalendar = ensurePreviewCalendar(previewCalendarName);
+
+    if (method === "CANCEL") {
+      const existing = await previewCalendar.getItem(items[0].id);
+      if (!isPreview(existing, extensionId)) {
+        return result("alreadyProcessed");
+      }
+      await previewCalendar.deleteItem(existing);
+      return result("cancelled", false, previewCalendar.id, existing.id);
+    }
+
+    const targetCalendar = selectTargetCalendar(
+      items,
+      details.preferredCalendarId,
+      details.targetCalendarId
+    );
+    if (!targetCalendar) {
+      return result("noCalendar");
+    }
+
+    const invitedAttendees = items.map(item =>
+      findInvitedAttendee(item, targetCalendar)
+    );
+    if (invitedAttendees.some(attendee => !attendee)) {
+      return result("noCalendar");
+    }
+    const existingPreview = await previewCalendar.getItem(items[0].id);
+    if (!existingPreview && targetCalendarHasItem(targetCalendar, items[0].id)) {
+      return result("alreadyProcessed", false, targetCalendar.id, items[0].id);
+    }
+    for (const [index, item] of items.entries()) {
+      const invitedAttendee = invitedAttendees[index];
+      invitedAttendee.participationStatus =
+        details.participationStatus || "NEEDS-ACTION";
+      item.setProperty("X-MOZ-INVITED-ATTENDEE", invitedAttendee.id);
+      markPending(item, extensionId, details.sourceId, targetCalendar.id);
+    }
+
+    const existing = await previewCalendar.getItem(items[0].id);
+    const existingIsPreview = isPreview(existing, extensionId);
+    if (existing && !existingIsPreview && !cal.itip.isOpenInvitation(existing)) {
+      return result("alreadyProcessed", false, existing.calendar.id, existing.id);
+    }
+    if (existingIsPreview && cal.itip.compare(items[0], existing) <= 0) {
+      return result("alreadyPending", true, existing.calendar.id, existing.id);
+    }
+
+    const previewItem = items[0].parentItem.clone();
+    previewItem.calendar = previewCalendar;
+    const storedItem = existingIsPreview
+      ? await previewCalendar.modifyItem(previewItem, existing)
+      : await previewCalendar.addItem(previewItem);
+    return result(
+      existingIsPreview ? "updated" : "staged",
+      true,
+      previewCalendar.id,
+      storedItem.id
+    );
+  }
+
+  function writableCalendars() {
+    return cal.manager
+      .getCalendars()
+      .filter(calendar => {
+        try {
+          return (
+            cal.acl.isCalendarWritable(calendar) &&
+            cal.acl.userCanAddItemsToCalendar(calendar) &&
+            calendar.getProperty("capabilities.events.supported") !== false
+          );
+        } catch {
+          return false;
+        }
+      })
+      .sort(compareCalendars);
+  }
+
+  function selectTargetCalendar(items, preferredCalendarId, targetCalendarId) {
+    const calendars = writableCalendars().filter(
+      calendar => calendar.id !== PREVIEW_CALENDAR_ID
+    );
+    return targetCalendarId
+      ? calendars.find(calendar => calendar.id === targetCalendarId)
+      : calendars.find(calendar => calendar.id === preferredCalendarId) ||
+        calendars.find(calendar =>
+          items.some(item => cal.itip.getInvitedAttendee(item, calendar))
+        ) ||
+        calendars.find(calendar =>
+          Boolean(calendar.getProperty("calendar-main-default"))
+        );
+  }
+
+  function ensurePreviewCalendar(name) {
+    let calendar = cal.manager.getCalendarById(PREVIEW_CALENDAR_ID);
+    if (!calendar) {
+      calendar = cal.manager.createCalendar(
+        "memory",
+        Services.io.newURI("moz-memory-calendar://")
+      );
+      calendar.id = PREVIEW_CALENDAR_ID;
+      calendar.name = name;
+      calendar.setProperty("color", PREVIEW_CALENDAR_COLOR);
+      calendar.setProperty("calendar-main-in-composite", true);
+      cal.manager.registerCalendar(calendar);
+      calendar = cal.manager.getCalendarById(PREVIEW_CALENDAR_ID) || calendar;
+    }
+    calendar.name = name;
+    calendar.setProperty("color", PREVIEW_CALENDAR_COLOR);
+    calendar.setProperty("disabled", false);
+    calendar.setProperty("calendar-main-in-composite", true);
+    return calendar;
+  }
+
+  function targetCalendarHasItem(calendar, itemId) {
+    const facade = calendar?.wrappedJSObject || calendar;
+    const uncachedCalendar = facade?.mUncachedCalendar;
+    const uncached = uncachedCalendar?.wrappedJSObject || uncachedCalendar;
+    return Boolean(
+      uncached?.mItemInfoCache &&
+      Object.hasOwn(uncached.mItemInfoCache, itemId)
+    );
+  }
+
+  function findInvitedAttendee(item, calendar) {
+    const calendarAttendee = cal.itip.getInvitedAttendee(item, calendar);
+    if (calendarAttendee) {
+      return calendarAttendee;
+    }
+
+    const identityEmails = new Set(
+      MailServices.accounts.allIdentities
+        .map(identity => identity.email?.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    return item.getAttendees().find(attendee =>
+      identityEmails.has(
+        String(attendee.id || "")
+          .replace(/^mailto:/i, "")
+          .toLowerCase()
+      )
+    );
+  }
+
+  function compareCalendars(first, second) {
+    const firstDefault = Boolean(first.getProperty("calendar-main-default"));
+    const secondDefault = Boolean(second.getProperty("calendar-main-default"));
+    if (firstDefault !== secondDefault) {
+      return firstDefault ? -1 : 1;
+    }
+    const firstVisible = Boolean(first.getProperty("calendar-main-in-composite"));
+    const secondVisible = Boolean(second.getProperty("calendar-main-in-composite"));
+    if (firstVisible !== secondVisible) {
+      return firstVisible ? -1 : 1;
+    }
+    return first.name.localeCompare(second.name);
+  }
+
+  function markPending(item, extensionId, sourceId, targetCalendarId) {
+    const stampTime = item.stampTime;
+    const lastModifiedTime = item.lastModifiedTime;
+    const originalTransparency = item.getProperty("TRANSP");
+    item.setProperty(OWNER_PROPERTY, extensionId);
+    item.setProperty(SOURCE_PROPERTY, sourceId);
+    item.setProperty(TARGET_CALENDAR_PROPERTY, targetCalendarId);
+    item.setProperty(
+      ORIGINAL_TRANSP_PROPERTY,
+      originalTransparency == null ? DEFAULT_TRANSP : originalTransparency
+    );
+    item.setProperty("TRANSP", "TRANSPARENT");
+    restoreRevisionTimes(item, stampTime, lastModifiedTime);
+  }
+
+  function restoreTransparency(item) {
+    const stampTime = item.stampTime;
+    const lastModifiedTime = item.lastModifiedTime;
+    const originalTransparency = item.getProperty(ORIGINAL_TRANSP_PROPERTY);
+    if (originalTransparency === DEFAULT_TRANSP) {
+      item.deleteProperty("TRANSP");
+    } else if (originalTransparency) {
+      item.setProperty("TRANSP", originalTransparency);
+    }
+    item.deleteProperty(OWNER_PROPERTY);
+    item.deleteProperty(SOURCE_PROPERTY);
+    item.deleteProperty(ORIGINAL_TRANSP_PROPERTY);
+    restoreRevisionTimes(item, stampTime, lastModifiedTime);
+  }
+
+  function copyPreviewMetadata(item, sourceItem) {
+    for (const property of [
+      OWNER_PROPERTY,
+      SOURCE_PROPERTY,
+      ORIGINAL_TRANSP_PROPERTY,
+      TARGET_CALENDAR_PROPERTY,
+    ]) {
+      const value = sourceItem.getProperty(property);
+      if (value != null) {
+        item.setProperty(property, value);
+      }
+    }
+  }
+
+  async function preserveTransferMetadata(item, sourceItem) {
+    const preservedItem = item.clone();
+    copyPreviewMetadata(preservedItem, sourceItem);
+    restoreOriginalTransparency(preservedItem);
+    return item.calendar.modifyItem(preservedItem, item);
+  }
+
+  function restoreOriginalTransparency(item) {
+    const originalTransparency = item.getProperty(ORIGINAL_TRANSP_PROPERTY);
+    if (originalTransparency === DEFAULT_TRANSP) {
+      item.deleteProperty("TRANSP");
+    } else if (originalTransparency) {
+      item.setProperty("TRANSP", originalTransparency);
+    }
+  }
+
+  function restoreRevisionTimes(item, stampTime, lastModifiedTime) {
+    if (stampTime) {
+      item.setProperty("DTSTAMP", stampTime);
+    }
+    if (lastModifiedTime) {
+      item.setProperty("LAST-MODIFIED", lastModifiedTime);
+    }
+  }
+
+  function participationStatus(item) {
+    return cal.itip.getInvitedAttendee(item, item?.calendar)?.participationStatus || "";
+  }
+
+  function isPreview(item, extensionId) {
+    return item?.getProperty(OWNER_PROPERTY) === extensionId;
+  }
+
+  function result(status, pending = false, calendarId, itemId) {
+    return {
+      status,
+      pending,
+      ...(calendarId ? { calendarId } : {}),
+      ...(itemId ? { itemId } : {}),
+    };
+  }
+
+  function withTimeout(promise, timeoutMs, message) {
+    let timeout;
+    return Promise.race([
+      promise,
+      new Promise((_, rejectPromise) => {
+        timeout = setTimeout(() => rejectPromise(new Error(message)), timeoutMs);
+      }),
+    ]).finally(() => clearTimeout(timeout));
+  }
+
+}

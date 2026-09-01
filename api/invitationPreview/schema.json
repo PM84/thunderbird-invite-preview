@@ -1,0 +1,170 @@
+[
+  {
+    "namespace": "invitationPreview",
+    "types": [
+      {
+        "id": "TargetCalendar",
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "isDefault": { "type": "boolean" }
+        }
+      },
+      {
+        "id": "StageDetails",
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "preferredCalendarId": {
+            "choices": [
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "optional": true
+          },
+          "targetCalendarId": {
+            "choices": [
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "optional": true
+          },
+          "participationStatus": {
+            "choices": [
+              {
+                "type": "string",
+                "enum": ["ACCEPTED", "TENTATIVE", "DECLINED"]
+              },
+              { "type": "null" }
+            ],
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "StageResult",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "staged",
+              "updated",
+              "alreadyPending",
+              "alreadyProcessed",
+              "cancelled",
+              "ignored",
+              "noCalendar",
+              "calendarError"
+            ]
+          },
+          "pending": { "type": "boolean" },
+          "calendarId": { "type": "string", "optional": true },
+          "itemId": { "type": "string", "optional": true }
+        }
+      },
+      {
+        "id": "PreviewReference",
+        "type": "object",
+        "properties": {
+          "calendarId": { "type": "string" },
+          "itemId": { "type": "string" }
+        }
+      },
+      {
+        "id": "Resolution",
+        "type": "object",
+        "properties": {
+          "sourceId": { "type": "string" },
+          "calendarId": { "type": "string" },
+          "itemId": { "type": "string" },
+          "participationStatus": { "type": "string" }
+        }
+      },
+      {
+        "id": "PendingTransfer",
+        "type": "object",
+        "properties": {
+          "sourceId": { "type": "string" },
+          "calendarId": { "type": "string" },
+          "itemId": { "type": "string" },
+          "targetCalendarId": { "type": "string" },
+          "participationStatus": {
+            "type": "string",
+            "enum": ["ACCEPTED", "TENTATIVE", "DECLINED"]
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "listCalendars",
+        "type": "function",
+        "async": true,
+        "parameters": [],
+        "returns": {
+          "type": "array",
+          "items": { "$ref": "TargetCalendar" }
+        }
+      },
+      {
+        "name": "stage",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "icalText", "type": "string" },
+          { "name": "details", "$ref": "StageDetails" }
+        ],
+        "returns": { "$ref": "StageResult" }
+      },
+      {
+        "name": "inspect",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "references",
+            "type": "array",
+            "items": { "$ref": "PreviewReference" }
+          }
+        ],
+        "returns": {
+          "type": "array",
+          "items": { "$ref": "PreviewReference" }
+        }
+      },
+      {
+        "name": "remove",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "calendarId", "type": "string" },
+          { "name": "itemId", "type": "string" }
+        ],
+        "returns": { "type": "boolean" }
+      }
+    ],
+    "events": [
+      {
+        "name": "onResolved",
+        "type": "function",
+        "parameters": [
+          { "name": "resolution", "$ref": "Resolution" }
+        ]
+      },
+      {
+        "name": "onTransferPending",
+        "type": "function",
+        "parameters": [
+          { "name": "transfer", "$ref": "PendingTransfer" }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "name": "thunderbird-invite-preview",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Show unconfirmed email invitations as tentative calendar previews in Thunderbird.",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PM84/thunderbird-invite-preview.git"
+  },
+  "homepage": "https://github.com/PM84/thunderbird-invite-preview#readme",
+  "bugs": {
+    "url": "https://github.com/PM84/thunderbird-invite-preview/issues"
+  },
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "test": "npm run vendor --silent && node --test test/*.test.js",
+    "lint": "eslint src api options popup scripts test eslint.config.js",
+    "validate": "npm run vendor --silent && node scripts/validate.mjs",
+    "build": "npm run vendor --silent && node scripts/package.mjs",
+    "check": "npm run lint && npm test && npm run validate && npm run build"
+  },
+  "dependencies": {
+    "ical.js": "2.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "archiver": "8.0.0",
+    "eslint": "10.9.1",
+    "globals": "17.12.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "packageManager": "npm@10.9.8"
+}

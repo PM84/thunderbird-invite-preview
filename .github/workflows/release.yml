@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "release-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release version
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "JSON.parse(require('node:fs').readFileSync('manifest.json')).version")
+          package_version=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json')).version")
+          lock_version=$(node -p "JSON.parse(require('node:fs').readFileSync('package-lock.json')).version")
+
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must use the vMAJOR.MINOR.PATCH format." >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match manifest version $version." >&2
+            exit 1
+          fi
+          if [[ "$package_version" != "$version" || "$lock_version" != "$version" ]]; then
+            echo "Manifest, package, and lockfile versions must match." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run release checks
+        run: npm run check
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Create source archive
+        shell: bash
+        run: |
+          git archive \
+            --format=zip \
+            --prefix="thunderbird-invite-preview-${{ steps.version.outputs.version }}/" \
+            --output="dist/invite-preview-${{ steps.version.outputs.version }}-source.zip" \
+            "$GITHUB_SHA"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: "invite-preview-${{ steps.version.outputs.version }}"
+          path: |
+            dist/invite-preview-${{ steps.version.outputs.version }}.xpi
+            dist/invite-preview-${{ steps.version.outputs.version }}-source.zip
+          if-no-files-found: error
+
+      - name: Check ATN credentials
+        id: atn
+        shell: bash
+        env:
+          ATN_API_KEY: "${{ secrets.ATN_API_KEY }}"
+          ATN_API_SECRET: "${{ secrets.ATN_API_SECRET }}"
+        run: |
+          if [[ -n "$ATN_API_KEY" && -n "$ATN_API_SECRET" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ATN submission skipped because ATN_API_KEY and ATN_API_SECRET are not configured."
+          fi
+
+      - name: Submit listed version to addons.thunderbird.net
+        if: "steps.atn.outputs.enabled == 'true'"
+        uses: kewisch/action-web-ext@84a13bb9e1b6108c43788ba091c41ca1dba6ad45 # v2
+        with:
+          cmd: sign
+          source: "dist/invite-preview-${{ steps.version.outputs.version }}.xpi"
+          channel: listed
+          apiUrlPrefix: https://addons.thunderbird.net/api/v4
+          apiKey: "${{ secrets.ATN_API_KEY }}"
+          apiSecret: "${{ secrets.ATN_API_SECRET }}"
+          timeout: 900000
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/invite-preview-${{ steps.version.outputs.version }}.xpi" \
+            "dist/invite-preview-${{ steps.version.outputs.version }}-source.zip" \
+            --verify-tag \
+            --title "Invite Preview ${{ steps.version.outputs.version }}" \
+            --generate-notes

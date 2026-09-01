@@ -1,0 +1,137 @@
+{
+  "extensionName": {
+    "message": "Einladungsvorschau"
+  },
+  "extensionDescription": {
+    "message": "Zeigt unbestätigte Kalendereinladungen aus E-Mails als nicht blockierende Termine an."
+  },
+  "active": {
+    "message": "Automatische Prüfung aktiv"
+  },
+  "inactive": {
+    "message": "Automatische Prüfung pausiert"
+  },
+  "pendingInvitations": {
+    "message": "Offene Einladungen"
+  },
+  "scanDisplayed": {
+    "message": "Angezeigte Nachricht prüfen"
+  },
+  "scanHistory": {
+    "message": "Vergangene Nachrichten prüfen"
+  },
+  "clearPreviews": {
+    "message": "Offene Vorschauen entfernen"
+  },
+  "openSettings": {
+    "message": "Einstellungen"
+  },
+  "confirmClear": {
+    "message": "Alle von Einladungsvorschau angelegten offenen Termine entfernen?"
+  },
+  "scanComplete": {
+    "message": "$COUNT$ Einladung(en) hinzugefügt oder aktualisiert.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "historyScanComplete": {
+    "message": "$DAYS$ Tage geprüft: $COUNT$ Einladung(en) hinzugefügt oder aktualisiert.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "historyScanNothing": {
+    "message": "$DAYS$ Tage geprüft: keine neue Einladung gefunden.",
+    "placeholders": {
+      "days": { "content": "$1" }
+    }
+  },
+  "nothingFound": {
+    "message": "Keine neue Einladung gefunden."
+  },
+  "calendarMissing": {
+    "message": "Kein passender schreibbarer Kalender verfügbar."
+  },
+  "scanNoCalendarPartial": {
+    "message": "$ADDED$ Einladung(en) hinzugefügt oder aktualisiert; für $SKIPPED$ war kein passender schreibbarer Kalender verfügbar.",
+    "placeholders": {
+      "added": { "content": "$1" },
+      "skipped": { "content": "$2" }
+    }
+  },
+  "historyScanNoCalendarPartial": {
+    "message": "$DAYS$ Tage geprüft: $ADDED$ Einladung(en) hinzugefügt oder aktualisiert; für $SKIPPED$ war kein passender schreibbarer Kalender verfügbar.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "added": { "content": "$2" },
+      "skipped": { "content": "$3" }
+    }
+  },
+  "calendarUnresponsive": {
+    "message": "Der Zielkalender antwortet nicht. Bitte Thunderbird neu starten und erneut versuchen."
+  },
+  "historyScanCalendarPartial": {
+    "message": "$DAYS$ Tage geprüft: $COUNT$ Einladung(en) hinzugefügt. Danach antwortete der Zielkalender nicht mehr.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "historyScanPartial": {
+    "message": "$DAYS$ Tage geprüft: $COUNT$ Einladung(en) hinzugefügt; $ERRORS$ Nachricht(en) waren nicht lesbar.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" },
+      "errors": { "content": "$3" }
+    }
+  },
+  "historyScanReadErrors": {
+    "message": "$DAYS$ Tage geprüft: keine Einladung hinzugefügt; $ERRORS$ Nachricht(en) waren nicht lesbar.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "errors": { "content": "$2" }
+    }
+  },
+  "operationFailed": {
+    "message": "Die Aktion konnte nicht abgeschlossen werden."
+  },
+  "removedPreviews": {
+    "message": "$COUNT$ Vorschau(en) entfernt.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "removePreviewsPartial": {
+    "message": "$REMOVED$ Vorschau(en) entfernt; $FAILED$ konnten nicht entfernt werden.",
+    "placeholders": {
+      "removed": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "settingsTitle": {
+    "message": "Einstellungen für Einladungsvorschau"
+  },
+  "automaticScanning": {
+    "message": "Eingehende Nachrichten automatisch prüfen"
+  },
+  "historyDays": {
+    "message": "Rückblick in Tagen"
+  },
+  "targetCalendar": {
+    "message": "Bevorzugter Kalender"
+  },
+  "automaticCalendar": {
+    "message": "Automatisch (E-Mail / Standardkalender)"
+  },
+  "calendarUnavailable": {
+    "message": "Gespeicherter Kalender (nicht verfügbar)"
+  },
+  "settingsSaved": {
+    "message": "Gespeichert"
+  },
+  "noCalendars": {
+    "message": "Keine passenden Kalender gefunden"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "1.0.0",
+  "author": "Dr. Peter Mayer",
+  "homepage_url": "https://github.com/PM84/thunderbird-invite-preview",
+  "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{81eecdaa-2f2e-4977-873f-d5d0beb47fdd}",
+      "strict_min_version": "154.0",
+      "strict_max_version": "154.*",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "icons": {
+    "16": "assets/icon.svg",
+    "32": "assets/icon.svg",
+    "64": "assets/icon.svg"
+  },
+  "background": {
+    "type": "module",
+    "scripts": [
+      "src/background.js"
+    ]
+  },
+  "action": {
+    "default_icon": "assets/icon.svg",
+    "default_popup": "popup/popup.html",
+    "default_title": "__MSG_extensionName__"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": false
+  },
+  "permissions": [
+    "accountsRead",
+    "messagesRead",
+    "storage"
+  ],
+  "experiment_apis": {
+    "invitationPreview": {
+      "schema": "api/invitationPreview/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "invitationPreview"
+          ]
+        ],
+        "script": "api/invitationPreview/implementation.js",
+        "events": [
+          "startup"
+        ]
+      }
+    }
+  }
+}

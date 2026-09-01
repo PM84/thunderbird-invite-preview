@@ -1,0 +1,137 @@
+{
+  "extensionName": {
+    "message": "Invite Preview"
+  },
+  "extensionDescription": {
+    "message": "Shows unconfirmed email invitations as non-blocking calendar events."
+  },
+  "active": {
+    "message": "Automatic scanning is active"
+  },
+  "inactive": {
+    "message": "Automatic scanning is paused"
+  },
+  "pendingInvitations": {
+    "message": "Pending invitations"
+  },
+  "scanDisplayed": {
+    "message": "Scan displayed message"
+  },
+  "scanHistory": {
+    "message": "Scan previous messages"
+  },
+  "clearPreviews": {
+    "message": "Remove pending previews"
+  },
+  "openSettings": {
+    "message": "Settings"
+  },
+  "confirmClear": {
+    "message": "Remove all pending events created by Invite Preview?"
+  },
+  "scanComplete": {
+    "message": "Added or updated $COUNT$ invitation(s).",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "historyScanComplete": {
+    "message": "Scanned $DAYS$ days: added or updated $COUNT$ invitation(s).",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "historyScanNothing": {
+    "message": "Scanned $DAYS$ days: no new invitation found.",
+    "placeholders": {
+      "days": { "content": "$1" }
+    }
+  },
+  "nothingFound": {
+    "message": "No new invitation found."
+  },
+  "calendarMissing": {
+    "message": "No matching writable calendar is available."
+  },
+  "scanNoCalendarPartial": {
+    "message": "Added or updated $ADDED$ invitation(s); $SKIPPED$ had no matching writable calendar.",
+    "placeholders": {
+      "added": { "content": "$1" },
+      "skipped": { "content": "$2" }
+    }
+  },
+  "historyScanNoCalendarPartial": {
+    "message": "Scanned $DAYS$ days: added or updated $ADDED$ invitation(s); $SKIPPED$ had no matching writable calendar.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "added": { "content": "$2" },
+      "skipped": { "content": "$3" }
+    }
+  },
+  "calendarUnresponsive": {
+    "message": "The target calendar is not responding. Restart Thunderbird and try again."
+  },
+  "historyScanCalendarPartial": {
+    "message": "Scanned $DAYS$ days: added $COUNT$ invitation(s). The target calendar then stopped responding.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "historyScanPartial": {
+    "message": "Scanned $DAYS$ days: added $COUNT$ invitation(s); $ERRORS$ message(s) could not be read.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" },
+      "errors": { "content": "$3" }
+    }
+  },
+  "historyScanReadErrors": {
+    "message": "Scanned $DAYS$ days: no invitations added; $ERRORS$ message(s) could not be read.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "errors": { "content": "$2" }
+    }
+  },
+  "operationFailed": {
+    "message": "The operation could not be completed."
+  },
+  "removedPreviews": {
+    "message": "Removed $COUNT$ preview(s).",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "removePreviewsPartial": {
+    "message": "Removed $REMOVED$ preview(s); $FAILED$ could not be removed.",
+    "placeholders": {
+      "removed": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "settingsTitle": {
+    "message": "Invite Preview settings"
+  },
+  "automaticScanning": {
+    "message": "Automatically scan incoming messages"
+  },
+  "historyDays": {
+    "message": "Lookback period in days"
+  },
+  "targetCalendar": {
+    "message": "Preferred calendar"
+  },
+  "automaticCalendar": {
+    "message": "Automatic (email / default calendar)"
+  },
+  "calendarUnavailable": {
+    "message": "Saved calendar (unavailable)"
+  },
+  "settingsSaved": {
+    "message": "Saved"
+  },
+  "noCalendars": {
+    "message": "No matching calendars found"
+  }
+}
