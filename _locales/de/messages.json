@@ -120,10 +120,10 @@
     "message": "Rückblick in Tagen"
   },
   "targetCalendar": {
-    "message": "Bevorzugter Kalender"
+    "message": "Ausweichkalender"
   },
   "automaticCalendar": {
-    "message": "Automatisch (E-Mail / Standardkalender)"
+    "message": "Thunderbird-Standardkalender"
   },
   "calendarUnavailable": {
     "message": "Gespeicherter Kalender (nicht verfügbar)"

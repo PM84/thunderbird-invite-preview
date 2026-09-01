@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 const data = {
   pendingPreviews: Object.fromEntries([
-    preview("source-1", "preview-calendar", "event-1"),
+    preview("source-1", "preview-calendar", "event-1", {
+      preferredCalendarId: "fallback-calendar",
+    }),
     preview("source-2", "preview-calendar", "event-2", {
       icalText: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
     }),
@@ -30,6 +32,7 @@ const installedEvent = createEvent();
 const startupEvent = createEvent();
 const messageEvent = createEvent();
 let inspectCount = 0;
+const inspectCalls = [];
 const stageCalls = [];
 let queryCount = 0;
 let resolveQuery;
@@ -50,6 +53,7 @@ globalThis.messenger = {
     onTransferPending: transferPendingEvent,
     async inspect(references) {
       inspectCount += 1;
+      inspectCalls.push(references);
       return inspectCount === 1 ? [references[0]] : references;
     },
     async stage(icalText, details) {
@@ -79,6 +83,7 @@ await import("../src/background.js");
 
 const state = await messageEvent.fire({ type: "getState" });
 assert.equal(state.pendingCount, 3);
+assert.equal(inspectCalls[0][0].preferredCalendarId, "fallback-calendar");
 assert.equal(stageCalls.length, 2);
 assert.deepEqual(stageCalls[1].details, {
   sourceId: "source-4",

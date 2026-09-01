@@ -26,23 +26,28 @@ configured for the same email address.
 13. Confirm junk messages, malformed ICS, files larger than 1 MiB, and invitations
     for an unrelated identity create no event.
 14. Configure one target calendar with the invitation recipient's email and make
-    a different calendar the default. Confirm the matching identity is used for
-    native RSVP handling.
-15. Remove the matching calendar email and confirm automatic selection uses the
-    default calendar identity while preserving native RSVP handling.
-16. Test an explicitly selected writable calendar as an override.
-17. Set the history period to 60 days. Put read invitations inside and outside
+    a different calendar the default and fallback. Confirm the matching identity
+    calendar is still selected for native RSVP handling.
+15. Configure another writable calendar to inherit Thunderbird's default email.
+    Confirm the explicitly assigned matching calendar still takes precedence,
+    and that the inherited identity remains usable when no explicit assignment
+    matches.
+16. Remove the matching calendar email and confirm automatic selection uses the
+    selected fallback, or the default calendar when no fallback is configured.
+17. Put an already accepted event in a non-default calendar, then run the history
+    scan. Confirm no preview with the same UID is created.
+18. Set the history period to 60 days. Put read invitations inside and outside
     that range in an inbox and an archive, then run the history scan. Confirm
     only in-range messages are staged.
-18. Confirm the history scan ignores sent, draft, junk, template, outbox, and
+19. Confirm the history scan ignores sent, draft, junk, template, outbox, and
     trash folders.
-19. Disable automatic scanning, receive an invite, and use the popup to scan the
+20. Disable automatic scanning, receive an invite, and use the popup to scan the
     displayed message manually.
-20. Run the history scan while automatic scanning is disabled and confirm it
+21. Run the history scan while automatic scanning is disabled and confirm it
     still runs on explicit request.
-21. Remove all pending previews from the popup and confirm accepted events remain.
-22. Restart Thunderbird and confirm pending-count reconciliation still works.
-23. Make the selected target temporarily unwritable, accept a preview, and
+22. Remove all pending previews from the popup and confirm accepted events remain.
+23. Restart Thunderbird and confirm pending-count reconciliation still works.
+24. Make the selected target temporarily unwritable, accept a preview, and
     confirm the accepted local copy remains. Restore write access and trigger
     reconciliation; confirm the transfer completes without a second RSVP.
 

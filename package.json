@@ -1,6 +1,6 @@
 {
   "name": "thunderbird-invite-preview",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "Show unconfirmed email invitations as tentative calendar previews in Thunderbird.",
@@ -15,7 +15,7 @@
   },
   "scripts": {
     "vendor": "node scripts/vendor.mjs",
-    "test": "npm run vendor --silent && node --test test/*.test.js",
+    "test": "npm run vendor --silent && node scripts/validate-test-data.mjs && node --test test/*.test.js",
     "lint": "eslint src api options popup scripts test eslint.config.js",
     "validate": "npm run vendor --silent && node scripts/validate.mjs",
     "build": "npm run vendor --silent && node scripts/package.mjs",

@@ -29,18 +29,20 @@ folders. Read state is deliberately not filtered.
 `api/invitationPreview/implementation.js` is the only privileged module. It:
 
 1. parses the original invitation with Thunderbird's calendar parser;
-2. selects a writable target calendar whose configured email matches an invited
-  identity, falling back to Thunderbird's default calendar;
-3. creates a dedicated local memory calendar for pending previews;
-4. performs UID- and revision-aware add, update, and cancel operations directly
+2. selects a writable target calendar whose email identity exactly matches an
+  invited identity, prioritizing explicit calendar assignments over inherited
+  Thunderbird identities, then using the selected fallback or default;
+3. checks every real calendar's provider index and local cache for the UID;
+4. creates a dedicated local memory calendar for pending previews;
+5. performs UID- and revision-aware add, update, and cancel operations directly
   on that isolated memory provider;
-5. stores a `NEEDS-ACTION` event with its original UID and intended target;
-6. sets `TRANSP:TRANSPARENT` while the event is pending;
-7. after an acceptance or tentative acceptance, restores the original
+6. stores a `NEEDS-ACTION` event with its original UID and intended target;
+7. sets `TRANSP:TRANSPARENT` while the event is pending;
+8. after an acceptance or tentative acceptance, restores the original
   transparency and adds the event to the selected target calendar;
-8. removes the local copy only after that target add succeeds, while a decline
+9. removes the local copy only after that target add succeeds, while a decline
   removes the local copy without creating a target event;
-9. retains failed transfers with their response status and exact target so they
+10. retains failed transfers with their response status and exact target so they
   can be retried after reconciliation or restart without another RSVP.
 
 Thunderbird 154's remote cached calendar model can indefinitely block item

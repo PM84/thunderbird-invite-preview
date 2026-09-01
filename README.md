@@ -14,8 +14,12 @@ tentative, and decline responses.
 - Scans new non-junk mail automatically.
 - Scans existing incoming mail on demand over a configurable period of 1 to
 	3650 days, with a default of 60 days.
-- Selects a writable target calendar by invited email identity, then falls back
-	to Thunderbird's default calendar. A preferred calendar can override this.
+- Selects a writable target calendar by its resolved email identity. Explicit
+	calendar assignments take precedence over inherited Thunderbird identities.
+	If no calendar identity matches, it uses the selected fallback and then
+	Thunderbird's default calendar.
+- Checks every real calendar and its local cache for an existing UID before
+	creating a preview, including during history scans.
 - Restores pending previews after Thunderbird restarts.
 - Transfers accepted and tentatively accepted events to the selected target
 	calendar, and retries failed transfers without sending another RSVP.
@@ -26,7 +30,7 @@ are outside the supported scope.
 
 ## Compatibility
 
-Version `1.0.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
+Version `1.0.1` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
 Experiment API because Thunderbird does not provide a stable MailExtension
 calendar API. Each new Thunderbird major version requires the manual test plan
 before the manifest compatibility range is expanded.
@@ -45,7 +49,7 @@ npm audit
 ```
 
 `npm run check` runs ESLint, all unit tests, release-structure validation, and
-creates `dist/invite-preview-1.0.0.xpi`. The build copies the pinned `ical.js`
+creates `dist/invite-preview-1.0.1.xpi`. The build copies the pinned `ical.js`
 release byte-for-byte and packages readable source without bundling,
 transpilation, or minification.
 

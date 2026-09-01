@@ -17,6 +17,7 @@
   const PREVIEW_CALENDAR_ID = "8d2a1473-4f7b-47db-9c71-3e1096609cd1";
   const PREVIEW_CALENDAR_NAME = "Invite Preview";
   const PREVIEW_CALENDAR_COLOR = "#7d8790";
+  const ITEM_LOOKUP_TIMEOUT_MS = 1000;
   const TRANSFER_TIMEOUT_MS = 30000;
 
   this.invitationPreview = class extends ExtensionAPIPersistent {
@@ -170,7 +171,7 @@
       const transferKey = `${targetCalendar.id}\n${targetItem.id}`;
       this.transferringItems.add(transferKey);
       try {
-        if (!targetCalendarHasItem(targetCalendar, targetItem.id)) {
+        if (!calendarHasIndexedItem(targetCalendar, targetItem.id)) {
           try {
             await withTimeout(
               targetCalendar.addItem(targetItem),
@@ -178,7 +179,7 @@
               "Target calendar operation timed out"
             );
           } catch (error) {
-            if (!targetCalendarHasItem(targetCalendar, targetItem.id)) {
+            if (!calendarHasIndexedItem(targetCalendar, targetItem.id)) {
               throw error;
             }
           }
@@ -290,10 +291,15 @@
 
           inspect: async references => {
             const pending = [];
+            const calendars = userCalendars();
             for (const reference of references) {
               const calendar = cal.manager.getCalendarById(reference.calendarId);
               const item = await calendar?.getItem(reference.itemId);
               if (!item || !this.isOwnedPreview(item)) {
+                continue;
+              }
+              if (await findCalendarWithItem(calendars, item.id)) {
+                await calendar.deleteItem(item);
                 continue;
               }
               const status = participationStatus(item);
@@ -303,6 +309,13 @@
                 (await this.finalizeResolvedItem(item, item, status))
               ) {
                 continue;
+              }
+              if (!status || status === "NEEDS-ACTION") {
+                await alignPendingPreviewTarget(
+                  item,
+                  reference.preferredCalendarId,
+                  calendars
+                );
               }
               pending.push(reference);
             }
@@ -366,6 +379,7 @@
     }
 
     const previewCalendar = ensurePreviewCalendar(previewCalendarName);
+    const calendars = userCalendars();
 
     if (method === "CANCEL") {
       const existing = await previewCalendar.getItem(items[0].id);
@@ -376,10 +390,20 @@
       return result("cancelled", false, previewCalendar.id, existing.id);
     }
 
+    const existingPreview = await previewCalendar.getItem(items[0].id);
+    const existingCalendar = await findCalendarWithItem(calendars, items[0].id);
+    if (existingCalendar) {
+      if (isPreview(existingPreview, extensionId)) {
+        await previewCalendar.deleteItem(existingPreview);
+      }
+      return result("alreadyProcessed", false, existingCalendar.id, items[0].id);
+    }
+
     const targetCalendar = selectTargetCalendar(
       items,
       details.preferredCalendarId,
-      details.targetCalendarId
+      details.targetCalendarId,
+      calendars
     );
     if (!targetCalendar) {
       return result("noCalendar");
@@ -391,10 +415,6 @@
     if (invitedAttendees.some(attendee => !attendee)) {
       return result("noCalendar");
     }
-    const existingPreview = await previewCalendar.getItem(items[0].id);
-    if (!existingPreview && targetCalendarHasItem(targetCalendar, items[0].id)) {
-      return result("alreadyProcessed", false, targetCalendar.id, items[0].id);
-    }
     for (const [index, item] of items.entries()) {
       const invitedAttendee = invitedAttendees[index];
       invitedAttendee.participationStatus =
@@ -403,7 +423,7 @@
       markPending(item, extensionId, details.sourceId, targetCalendar.id);
     }
 
-    const existing = await previewCalendar.getItem(items[0].id);
+    const existing = existingPreview;
     const existingIsPreview = isPreview(existing, extensionId);
     if (existing && !existingIsPreview && !cal.itip.isOpenInvitation(existing)) {
       return result("alreadyProcessed", false, existing.calendar.id, existing.id);
@@ -426,8 +446,7 @@
   }
 
   function writableCalendars() {
-    return cal.manager
-      .getCalendars()
+    return userCalendars()
       .filter(calendar => {
         try {
           return (
@@ -442,19 +461,80 @@
       .sort(compareCalendars);
   }
 
-  function selectTargetCalendar(items, preferredCalendarId, targetCalendarId) {
-    const calendars = writableCalendars().filter(
-      calendar => calendar.id !== PREVIEW_CALENDAR_ID
+  function userCalendars() {
+    return cal.manager
+      .getCalendars()
+      .filter(calendar => calendar.id !== PREVIEW_CALENDAR_ID);
+  }
+
+  function selectTargetCalendar(
+    items,
+    preferredCalendarId,
+    targetCalendarId,
+    availableCalendars = userCalendars()
+  ) {
+    const availableIds = new Set(availableCalendars.map(calendar => calendar.id));
+    const calendars = writableCalendars().filter(calendar => availableIds.has(calendar.id));
+    if (targetCalendarId) {
+      return calendars.find(calendar => calendar.id === targetCalendarId);
+    }
+
+    const matchingCalendars = calendars.filter(calendar =>
+      items.some(item => findCalendarAttendee(item, calendar))
     );
-    return targetCalendarId
-      ? calendars.find(calendar => calendar.id === targetCalendarId)
-      : calendars.find(calendar => calendar.id === preferredCalendarId) ||
-        calendars.find(calendar =>
-          items.some(item => cal.itip.getInvitedAttendee(item, calendar))
-        ) ||
-        calendars.find(calendar =>
-          Boolean(calendar.getProperty("calendar-main-default"))
-        );
+    const explicitlyMappedCalendars = matchingCalendars.filter(
+      hasExplicitCalendarIdentity
+    );
+    const identityMatches = explicitlyMappedCalendars.length
+      ? explicitlyMappedCalendars
+      : matchingCalendars;
+    return (
+      identityMatches.find(calendar => calendar.id === preferredCalendarId) ||
+      identityMatches[0] ||
+      calendars.find(calendar => calendar.id === preferredCalendarId) ||
+      calendars.find(calendar =>
+        Boolean(calendar.getProperty("calendar-main-default"))
+      )
+    );
+  }
+
+  async function alignPendingPreviewTarget(item, preferredCalendarId, calendars) {
+    const targetCalendar = selectTargetCalendar(
+      [item],
+      preferredCalendarId,
+      null,
+      calendars
+    );
+    if (!targetCalendar) {
+      return;
+    }
+    const invitedAttendee = findInvitedAttendee(item, targetCalendar);
+    if (!invitedAttendee) {
+      return;
+    }
+    if (
+      item.getProperty(TARGET_CALENDAR_PROPERTY) === targetCalendar.id &&
+      normalizeEmail(item.getProperty("X-MOZ-INVITED-ATTENDEE")) ===
+        normalizeEmail(invitedAttendee.id)
+    ) {
+      return;
+    }
+
+    const updatedItem = item.clone();
+    const stampTime = updatedItem.stampTime;
+    const lastModifiedTime = updatedItem.lastModifiedTime;
+    updatedItem.setProperty(TARGET_CALENDAR_PROPERTY, targetCalendar.id);
+    updatedItem.setProperty("X-MOZ-INVITED-ATTENDEE", invitedAttendee.id);
+    restoreRevisionTimes(updatedItem, stampTime, lastModifiedTime);
+    await item.calendar.modifyItem(updatedItem, item);
+  }
+
+  function hasExplicitCalendarIdentity(calendar) {
+    try {
+      return Boolean(calendar.getProperty("imip.identity.key"));
+    } catch {
+      return false;
+    }
   }
 
   function ensurePreviewCalendar(name) {
@@ -478,18 +558,58 @@
     return calendar;
   }
 
-  function targetCalendarHasItem(calendar, itemId) {
+  async function findCalendarWithItem(calendars, itemId) {
+    const indexedCalendar = calendars.find(calendar =>
+      calendarHasIndexedItem(calendar, itemId)
+    );
+    if (indexedCalendar) {
+      return indexedCalendar;
+    }
+
+    const items = await Promise.all(
+      calendars.map(calendar =>
+        withTimeout(
+          Promise.resolve().then(() => localCalendarCache(calendar).getItem(itemId)),
+          ITEM_LOOKUP_TIMEOUT_MS,
+          "Calendar lookup timed out"
+        ).catch(() => null)
+      )
+    );
+    const index = items.findIndex(Boolean);
+    return index === -1 ? null : calendars[index];
+  }
+
+  function calendarHasIndexedItem(calendar, itemId) {
+    const itemIndex = calendarItemIndex(calendar);
+    return Boolean(itemIndex && Object.hasOwn(itemIndex, itemId));
+  }
+
+  function calendarItemIndex(calendar) {
     const facade = calendar?.wrappedJSObject || calendar;
     const uncachedCalendar = facade?.mUncachedCalendar;
     const uncached = uncachedCalendar?.wrappedJSObject || uncachedCalendar;
-    return Boolean(
-      uncached?.mItemInfoCache &&
-      Object.hasOwn(uncached.mItemInfoCache, itemId)
-    );
+    return uncached?.mItemInfoCache || facade?.mItemInfoCache || null;
+  }
+
+  function localCalendarCache(calendar) {
+    const facade = calendar?.wrappedJSObject || calendar;
+    return facade?.mCachedCalendar || calendar;
+  }
+
+  function findCalendarAttendee(item, calendar) {
+    try {
+      const identity = calendar.getProperty("imip.identity");
+      const email = normalizeEmail(identity?.email);
+      return email
+        ? item.getAttendees().find(attendee => normalizeEmail(attendee.id) === email)
+        : null;
+    } catch {
+      return null;
+    }
   }
 
   function findInvitedAttendee(item, calendar) {
-    const calendarAttendee = cal.itip.getInvitedAttendee(item, calendar);
+    const calendarAttendee = findCalendarAttendee(item, calendar);
     if (calendarAttendee) {
       return calendarAttendee;
     }
@@ -500,12 +620,15 @@
         .filter(Boolean)
     );
     return item.getAttendees().find(attendee =>
-      identityEmails.has(
-        String(attendee.id || "")
-          .replace(/^mailto:/i, "")
-          .toLowerCase()
-      )
+      identityEmails.has(normalizeEmail(attendee.id))
     );
+  }
+
+  function normalizeEmail(value) {
+    return String(value || "")
+      .replace(/^mailto:/i, "")
+      .trim()
+      .toLowerCase();
   }
 
   function compareCalendars(first, second) {

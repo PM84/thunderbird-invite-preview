@@ -9,21 +9,23 @@ availability. Respond using Thunderbird's native invitation controls.
 
 Invite Preview detects iTIP invitations in newly received messages and can scan
 existing incoming messages over a configurable period on request. It stages
-them in a local preview calendar and chooses the response identity from the
-preferred calendar's configured email, falling back to Thunderbird's default
-calendar. Thunderbird renders pending invitations with reduced opacity and a
+them in a local preview calendar and selects a calendar whose email identity
+matches the invited identity. Explicit calendar assignments take precedence
+over inherited identities. A selected fallback or Thunderbird's default is
+used only when no calendar email matches. Thunderbird renders pending invitations with reduced opacity and a
 dotted outline. Accept, tentatively accept, or decline them using Thunderbird's
 existing invitation view. Accepted events are then transferred to the selected
 target calendar; declined events are not added there. Processing is local, with
 no analytics, telemetry, advertising, or remote services operated by the
 developer.
 
-## Version 1.0.0 notes
+## Version 1.0.1 notes
 
 - Supports inline and attached `METHOD:REQUEST` invitations and cancellations.
 - Adds a user-triggered history scan with a configurable 60-day default.
-- Selects the calendar by configured email and falls back to the default
-  calendar; a user-selected override remains available.
+- Selects the calendar by its configured email before using a selected fallback
+  or Thunderbird's default calendar.
+- Checks all real calendar caches for an existing UID before staging a preview.
 - Prevents unreadable messages or unavailable calendar providers from blocking
   an entire history scan.
 - Stages previews in a dedicated local memory calendar without modifying
@@ -46,6 +48,6 @@ developer.
   URL and `PRIVACY.md` on the `main` branch as the privacy-policy URL.
 - Capture screenshots in German and English without personal calendar data.
 - Confirm the permanent UUID and developer display name.
-- Upload `dist/invite-preview-1.0.0.xpi` and explain the narrowly scoped Experiment
+- Upload `dist/invite-preview-1.0.1.xpi` and explain the narrowly scoped Experiment
   API in reviewer notes.
 - Follow `docs/releasing.md` to enable automatic submissions for later versions.
