@@ -30,9 +30,13 @@ The add-on stores these values in Thunderbird's local extension storage:
 - the selected target and response status while a failed transfer is pending;
 - complete ICS payloads only for pending previews, so the local memory calendar
 	can be restored after Thunderbird restarts.
+- complete cancellation ICS payloads while an accepted-event cancellation is
+  awaiting review, so it can be revalidated before a user-requested deletion.
+- bounded SHA-256 cancellation markers with sequence numbers, so an older
+	invitation found later cannot recreate a cancelled preview.
 
 The add-on does not store message bodies. Stored ICS payloads are removed after
-the invitation is resolved or the pending previews are cleared.
+the invitation or cancellation review is resolved, dismissed, or cleared.
 
 ## Calendar synchronization and replies
 
@@ -46,6 +50,14 @@ calendar provider may then synchronize it normally. The local preview is
 removed only after the target accepts the event. A failed transfer is retained
 and retried without sending another RSVP. Declining removes the local preview
 without adding an event to the target calendar.
+
+A cancellation for a pending local preview removes that preview automatically
+after the organizer and revision match. A cancellation for an event in a real
+calendar is placed in a local review queue and opens a review window. The event
+remains unchanged until the user explicitly removes it individually or confirms
+bulk removal. The cancellation is checked against the current calendar item
+again immediately before deletion. Failed or mismatched operations remain in
+the review queue until retried or dismissed.
 
 Staging an invitation does not send an RSVP. Thunderbird may send an RSVP only
 after the user explicitly accepts, tentatively accepts, or declines through

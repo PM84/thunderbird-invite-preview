@@ -12,6 +12,10 @@ flowchart LR
   Preview --> NativeUI[Native invitation UI]
   NativeUI -->|accept or tentative| Experiment
   Experiment -->|add, then remove preview| Calendar[Selected user calendar]
+  Extractors -->|CANCEL| CancelRouter[Cancellation router]
+  CancelRouter -->|pending preview| Preview
+  CancelRouter -->|accepted event| Review[Cancellation review window]
+  Review -->|user confirms| Calendar
 ```
 
 ## Stable MailExtension layer
@@ -44,6 +48,12 @@ folders. Read state is deliberately not filtered.
   removes the local copy without creating a target event;
 10. retains failed transfers with their response status and exact target so they
   can be retried after reconciliation or restart without another RSVP.
+11. automatically removes only owned pending previews for matching cancellation
+  messages;
+12. queues matching real-calendar events for user review and revalidates UID,
+  organizer, sequence, calendar, and recurrence scope before deletion.
+13. stores bounded SHA-256 markers derived from UID, organizer, and recurrence
+  scope so history scans cannot recreate an older cancelled invitation.
 
 Thunderbird 154's remote cached calendar model can indefinitely block item
 access while building its global recurrence cache. The dedicated memory calendar
@@ -61,14 +71,18 @@ uses Thunderbird's native invitation model and response transport through its
 Using the original UID is intentional. Thunderbird can then update the same
 event for a later request, avoid duplicates, and process the user's response in
 place. Existing accepted events are never replaced automatically. Cancellation
-messages only remove events previously marked by this add-on.
+messages remove pending previews automatically. Real-calendar events are never
+removed without an explicit action in the cancellation review window. A series
+cancellation deletes the series; a cancellation carrying `RECURRENCE-ID`
+removes only that occurrence.
 
 ## Security boundaries
 
 - Junk messages are ignored.
 - Inputs are limited to 1 MiB and 50 `VEVENT` components.
 - Only `METHOD:REQUEST` with organizer and attendee data is staged.
-- Only `METHOD:CANCEL` can remove a staged item.
+- Only validated `METHOD:CANCEL` data can remove a staged item or be offered for
+  explicit real-calendar deletion.
 - The Experiment does not expose arbitrary file, network, preference, or DOM
   access to the MailExtension layer.
 - There is no remote code, telemetry, HTML rendering, or dynamic code execution.

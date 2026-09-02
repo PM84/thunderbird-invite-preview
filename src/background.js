@@ -11,8 +11,11 @@ import { ExtensionStateStore } from "./infrastructure/extension-state-store.js";
 const stateStore = new ExtensionStateStore(messenger.storage.local);
 const extractors = [new IcsExtractor(messenger.messages)];
 const processingMessages = new Set();
+const deletingCancellations = new Set();
 let historyScanPromise = null;
 let restorePromise = null;
+let cancellationWindowId = null;
+let cancellationWindowPromise = null;
 
 const calendarGateway = {
   stage(candidate, details) {
@@ -36,11 +39,17 @@ messenger.invitationPreview.onTransferPending.addListener(transfer => {
 });
 
 messenger.runtime.onInstalled.addListener(() => {
-  void initializePreviews();
+  void initializeState();
 });
 
 messenger.runtime.onStartup.addListener(() => {
-  void initializePreviews();
+  void initializeState();
+});
+
+messenger.windows.onRemoved.addListener(windowId => {
+  if (windowId === cancellationWindowId) {
+    cancellationWindowId = null;
+  }
 });
 
 messenger.runtime.onMessage.addListener(request => {
@@ -53,6 +62,16 @@ messenger.runtime.onMessage.addListener(request => {
       return startHistoryScan();
     case "clearPreviews":
       return clearPreviews();
+    case "getCancellationReviews":
+      return getCancellationReviews();
+    case "openCancellationReview":
+      return openCancellationReview();
+    case "deleteCancellation":
+      return deleteCancellation(request.id);
+    case "deleteAllCancellations":
+      return deleteAllCancellations();
+    case "dismissCancellation":
+      return dismissCancellation(request.id);
     default:
       return undefined;
   }
@@ -61,6 +80,7 @@ messenger.runtime.onMessage.addListener(request => {
 async function processMessageList(initialList, options = {}) {
   let messageList = initialList;
   const outcomes = [];
+  let cancellationDetected = false;
 
   while (messageList) {
     const messages = options.newestFirst
@@ -72,6 +92,9 @@ async function processMessageList(initialList, options = {}) {
       if (!options.filter || options.filter(message)) {
         const messageOutcomes = await processMessageSafely(message, options);
         outcomes.push(...messageOutcomes);
+        cancellationDetected ||= messageOutcomes.some(
+          outcome => outcome.status === "cancellationPending"
+        );
         if (
           options.stopOnCalendarError &&
           messageOutcomes.some(outcome => outcome.status === "calendarError")
@@ -83,6 +106,15 @@ async function processMessageList(initialList, options = {}) {
     messageList = messageList.id
       ? await messenger.messages.continueList(messageList.id)
       : null;
+  }
+
+  if (cancellationDetected) {
+    await messenger.runtime.sendMessage({
+      type: "cancellationReviewsChanged",
+    }).catch(() => {});
+    await openCancellationReview().catch(error => {
+      console.error("Invite Preview could not open cancellation review", error);
+    });
   }
 
   return outcomes;
@@ -158,9 +190,11 @@ async function getState() {
     stateStore.getSettings(),
     stateStore.listPreviews(),
   ]);
+  const cancellations = await stateStore.listCancellations();
   return {
     enabled: settings.enabled,
     pendingCount: previews.length,
+    cancellationCount: cancellations.length,
   };
 }
 
@@ -195,9 +229,102 @@ async function clearPreviews() {
   };
 }
 
-async function initializePreviews() {
+async function initializeState() {
   await restorePreviews();
   await reconcilePreviews();
+  if ((await stateStore.listCancellations()).length > 0) {
+    await openCancellationReview();
+  }
+}
+
+async function getCancellationReviews() {
+  return (await stateStore.listCancellations()).map(publicCancellation);
+}
+
+function openCancellationReview() {
+  if (!cancellationWindowPromise) {
+    cancellationWindowPromise = openCancellationReviewNow().finally(() => {
+      cancellationWindowPromise = null;
+    });
+  }
+  return cancellationWindowPromise;
+}
+
+async function openCancellationReviewNow() {
+  if (cancellationWindowId != null) {
+    try {
+      await messenger.windows.update(cancellationWindowId, { focused: true });
+      return { windowId: cancellationWindowId };
+    } catch {
+      cancellationWindowId = null;
+    }
+  }
+
+  const reviewWindow = await messenger.windows.create({
+    url: messenger.runtime.getURL("cancellations/cancellations.html"),
+    type: "popup",
+    width: 720,
+    height: 640,
+  });
+  cancellationWindowId = reviewWindow.id;
+  return { windowId: cancellationWindowId };
+}
+
+async function deleteCancellation(id) {
+  if (deletingCancellations.has(id)) {
+    return { status: "busy" };
+  }
+  deletingCancellations.add(id);
+  try {
+    const cancellation = await stateStore.getCancellation(id);
+    if (!cancellation) {
+      return { status: "missing" };
+    }
+    const outcome = await messenger.invitationPreview.deleteCancellation(
+      cancellation.icalText,
+      cancellation.calendarId,
+      cancellation.itemId,
+      cancellation.recurrenceId
+    );
+    if (outcome.status === "deleted" || outcome.status === "missing") {
+      await stateStore.removeCancellation(id);
+    } else {
+      await stateStore.markCancellationError(id, outcome.status);
+    }
+    return outcome;
+  } finally {
+    deletingCancellations.delete(id);
+  }
+}
+
+async function deleteAllCancellations() {
+  const cancellations = await stateStore.listCancellations();
+  let deletedCount = 0;
+  let failedCount = 0;
+  for (const cancellation of cancellations) {
+    const outcome = await deleteCancellation(cancellation.id);
+    if (outcome.status === "deleted" || outcome.status === "missing") {
+      deletedCount += 1;
+    } else {
+      failedCount += 1;
+    }
+  }
+  return { deletedCount, failedCount };
+}
+
+async function dismissCancellation(id) {
+  await stateStore.removeCancellation(id);
+  return { status: "dismissed" };
+}
+
+function publicCancellation(cancellation) {
+  const publicFields = { ...cancellation };
+  delete publicFields.icalText;
+  delete publicFields.sourceId;
+  delete publicFields.calendarId;
+  delete publicFields.itemId;
+  delete publicFields.recurrenceId;
+  return publicFields;
 }
 
 function restorePreviews() {

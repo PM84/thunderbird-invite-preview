@@ -16,6 +16,7 @@ const packageEntries = [
   "_locales",
   "api",
   "assets",
+  "cancellations",
   "options",
   "popup",
   "src",

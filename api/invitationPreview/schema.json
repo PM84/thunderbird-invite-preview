@@ -59,6 +59,7 @@
               "alreadyPending",
               "alreadyProcessed",
               "cancelled",
+              "cancellationPending",
               "ignored",
               "noCalendar",
               "calendarError"
@@ -66,7 +67,42 @@
           },
           "pending": { "type": "boolean" },
           "calendarId": { "type": "string", "optional": true },
-          "itemId": { "type": "string", "optional": true }
+          "itemId": { "type": "string", "optional": true },
+          "cancellations": {
+            "type": "array",
+            "items": { "$ref": "CancellationCandidate" },
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "CancellationCandidate",
+        "type": "object",
+        "properties": {
+          "calendarId": { "type": "string" },
+          "itemId": { "type": "string" },
+          "calendarName": { "type": "string" },
+          "title": { "type": "string" },
+          "startDate": { "type": "string", "optional": true },
+          "endDate": { "type": "string", "optional": true },
+          "allDay": { "type": "boolean" },
+          "organizer": { "type": "string", "optional": true },
+          "recurrenceId": {
+            "choices": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      {
+        "id": "CancellationResult",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["deleted", "missing", "mismatch", "calendarError"]
+          }
         }
       },
       {
@@ -145,6 +181,24 @@
           "type": "array",
           "items": { "$ref": "PreviewReference" }
         }
+      },
+      {
+        "name": "deleteCancellation",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "icalText", "type": "string" },
+          { "name": "calendarId", "type": "string" },
+          { "name": "itemId", "type": "string" },
+          {
+            "name": "recurrenceId",
+            "choices": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        ],
+        "returns": { "$ref": "CancellationResult" }
       },
       {
         "name": "remove",

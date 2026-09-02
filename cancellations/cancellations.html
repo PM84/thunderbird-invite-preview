@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n="cancellationReviewTitle"></title>
+    <link rel="stylesheet" href="cancellations.css">
+  </head>
+  <body>
+    <header class="window-header">
+      <div>
+        <p class="eyebrow" data-i18n="cancellationReviewEyebrow"></p>
+        <h1 data-i18n="cancellationReviewTitle"></h1>
+      </div>
+      <button id="close" class="icon-button" type="button" aria-label="Close" title="Close">&times;</button>
+    </header>
+
+    <main>
+      <section id="list-view">
+        <div class="list-summary">
+          <p data-i18n="cancellationReviewSummary"></p>
+          <strong id="review-count">0</strong>
+        </div>
+        <p id="empty-state" class="empty-state" data-i18n="noCancellationReviews" hidden></p>
+        <ul id="review-list" class="review-list"></ul>
+        <div class="action-bar">
+          <button id="delete-all" class="danger" type="button" data-i18n="deleteAllCancellations"></button>
+        </div>
+      </section>
+
+      <section id="detail-view" hidden>
+        <nav class="detail-navigation" aria-label="Cancellation navigation">
+          <button id="back" class="icon-button" type="button" aria-label="Back to list" title="Back to list">&#8592;</button>
+          <span id="position"></span>
+          <div class="chevrons">
+            <button id="previous" class="icon-button" type="button" aria-label="Previous cancellation" title="Previous cancellation">&#8249;</button>
+            <button id="next" class="icon-button" type="button" aria-label="Next cancellation" title="Next cancellation">&#8250;</button>
+          </div>
+        </nav>
+
+        <article class="detail-content">
+          <p class="status-label" data-i18n="cancelledInvitation"></p>
+          <h2 id="detail-title"></h2>
+          <dl>
+            <div>
+              <dt data-i18n="cancellationCalendar"></dt>
+              <dd id="detail-calendar"></dd>
+            </div>
+            <div>
+              <dt data-i18n="cancellationDate"></dt>
+              <dd id="detail-date"></dd>
+            </div>
+            <div id="organizer-row">
+              <dt data-i18n="cancellationOrganizer"></dt>
+              <dd id="detail-organizer"></dd>
+            </div>
+            <div>
+              <dt data-i18n="cancellationReceived"></dt>
+              <dd id="detail-received"></dd>
+            </div>
+          </dl>
+          <p id="detail-error" class="error" role="status" aria-live="polite"></p>
+        </article>
+
+        <div class="action-bar split">
+          <button id="dismiss" class="secondary" type="button" data-i18n="dismissCancellation"></button>
+          <button id="delete-one" class="danger" type="button" data-i18n="deleteCancellation"></button>
+        </div>
+      </section>
+
+      <p id="status" class="window-status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="cancellations.js"></script>
+  </body>
+</html>

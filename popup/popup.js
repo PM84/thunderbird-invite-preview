@@ -2,10 +2,12 @@ localizeDocument();
 
 const activity = document.querySelector("#activity");
 const pendingCount = document.querySelector("#pending-count");
+const cancellationCount = document.querySelector("#cancellation-count");
 const result = document.querySelector("#result");
 const scanButton = document.querySelector("#scan");
 const historyButton = document.querySelector("#scan-history");
 const clearButton = document.querySelector("#clear");
+const reviewCancellationsButton = document.querySelector("#review-cancellations");
 const settingsButton = document.querySelector("#settings");
 
 scanButton.addEventListener("click", async () => {
@@ -22,6 +24,8 @@ scanButton.addEventListener("click", async () => {
           summary.noCalendarCount,
         ])
         : message("calendarMissing");
+    } else if (summary.cancellationCount > 0) {
+      result.textContent = message("cancellationReviewOpened", summary.cancellationCount);
     } else if (summary.stagedCount > 0) {
       result.textContent = message("scanComplete", summary.stagedCount);
     } else {
@@ -53,6 +57,11 @@ historyButton.addEventListener("click", async () => {
           summary.noCalendarCount,
         ])
         : message("calendarMissing");
+    } else if (summary.cancellationCount > 0) {
+      result.textContent = message(
+        "historyCancellationReviewOpened",
+        [summary.historyDays, summary.cancellationCount]
+      );
     } else if (summary.stagedCount > 0) {
       result.textContent = message(
         "historyScanComplete",
@@ -79,14 +88,20 @@ clearButton.addEventListener("click", async () => {
 });
 
 settingsButton.addEventListener("click", () => messenger.runtime.openOptionsPage());
+reviewCancellationsButton.addEventListener("click", async () => {
+  await messenger.runtime.sendMessage({ type: "openCancellationReview" });
+  window.close();
+});
 
 await refreshState();
 
 async function refreshState() {
   const state = await messenger.runtime.sendMessage({ type: "getState" });
   pendingCount.textContent = String(state.pendingCount);
+  cancellationCount.textContent = String(state.cancellationCount);
   activity.textContent = message(state.enabled ? "active" : "inactive");
   clearButton.disabled = state.pendingCount === 0;
+  reviewCancellationsButton.disabled = state.cancellationCount === 0;
 }
 
 async function runBusy(button, operation) {

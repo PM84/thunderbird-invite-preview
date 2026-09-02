@@ -13,7 +13,12 @@ export default [
     rules: eslint.configs.recommended.rules,
   },
   {
-    files: ["src/**/*.js", "options/**/*.js", "popup/**/*.js"],
+    files: [
+      "src/**/*.js",
+      "options/**/*.js",
+      "popup/**/*.js",
+      "cancellations/**/*.js",
+    ],
     languageOptions: {
       sourceType: "module",
       globals: {

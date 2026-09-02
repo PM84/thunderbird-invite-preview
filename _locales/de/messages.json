@@ -14,6 +14,25 @@
   "pendingInvitations": {
     "message": "Offene Einladungen"
   },
+  "pendingCancellations": {
+    "message": "Zu prüfende Absagen"
+  },
+  "reviewCancellations": {
+    "message": "Absagen prüfen"
+  },
+  "cancellationReviewOpened": {
+    "message": "$COUNT$ Absage(n) zur Prüfung geöffnet.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "historyCancellationReviewOpened": {
+    "message": "$DAYS$ Tage geprüft: $COUNT$ Absage(n) zur Prüfung geöffnet.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
   "scanDisplayed": {
     "message": "Angezeigte Nachricht prüfen"
   },
@@ -109,6 +128,107 @@
       "removed": { "content": "$1" },
       "failed": { "content": "$2" }
     }
+  },
+  "cancellationReviewEyebrow": {
+    "message": "Kalenderänderungen"
+  },
+  "cancellationReviewTitle": {
+    "message": "Abgesagte Einladungen"
+  },
+  "cancellationReviewSummary": {
+    "message": "Termine bleiben in ihren Kalendern, bis Sie sie entfernen."
+  },
+  "noCancellationReviews": {
+    "message": "Es sind keine Absagen zu prüfen."
+  },
+  "deleteAllCancellations": {
+    "message": "Alle aus Kalendern entfernen"
+  },
+  "confirmDeleteAllCancellations": {
+    "message": "Alle $COUNT$ abgesagten Termine aus ihren Kalendern entfernen?",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "cancelledInvitation": {
+    "message": "Einladung abgesagt"
+  },
+  "cancellationCalendar": {
+    "message": "Kalender"
+  },
+  "cancellationDate": {
+    "message": "Datum"
+  },
+  "cancellationOrganizer": {
+    "message": "Organisator"
+  },
+  "cancellationReceived": {
+    "message": "Absage erhalten"
+  },
+  "deleteCancellation": {
+    "message": "Aus Kalender entfernen"
+  },
+  "dismissCancellation": {
+    "message": "Termin behalten und Hinweis verwerfen"
+  },
+  "confirmDeleteCancellation": {
+    "message": "„$TITLE$“ aus dem Kalender entfernen?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "cancellationDeleted": {
+    "message": "Der Termin wurde aus dem Kalender entfernt."
+  },
+  "cancellationsDeleted": {
+    "message": "$COUNT$ abgesagte(n) Termin(e) entfernt.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "cancellationsDeletePartial": {
+    "message": "$DELETED$ Termin(e) entfernt; $FAILED$ konnten nicht entfernt werden.",
+    "placeholders": {
+      "deleted": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "cancellationDismissed": {
+    "message": "Der Termin wurde behalten und der Hinweis verworfen."
+  },
+  "cancellationMismatch": {
+    "message": "Der Kalendertermin stimmt nicht mehr mit dieser Absage überein und wurde nicht entfernt."
+  },
+  "cancellationDeleteFailed": {
+    "message": "Der Termin konnte nicht entfernt werden. Ein weiterer Versuch ist möglich."
+  },
+  "cancellationPreviousError": {
+    "message": "Ein vorheriger Löschversuch ist fehlgeschlagen."
+  },
+  "cancellationPosition": {
+    "message": "$CURRENT$ von $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "untitledEvent": {
+    "message": "Termin ohne Titel"
+  },
+  "dateUnavailable": {
+    "message": "Datum nicht verfügbar"
+  },
+  "closeWindow": {
+    "message": "Schließen"
+  },
+  "backToCancellationList": {
+    "message": "Zurück zur Liste"
+  },
+  "previousCancellation": {
+    "message": "Vorherige Absage"
+  },
+  "nextCancellation": {
+    "message": "Nächste Absage"
   },
   "settingsTitle": {
     "message": "Einstellungen für Einladungsvorschau"

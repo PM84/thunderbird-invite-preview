@@ -11,6 +11,9 @@ const requiredFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/release.yml",
   "assets/icon.svg",
+  "cancellations/cancellations.html",
+  "cancellations/cancellations.css",
+  "cancellations/cancellations.js",
   "docs/releasing.md",
   "popup/popup.html",
   "options/options.html",
@@ -91,6 +94,8 @@ const localizedFiles = [
   JSON.stringify(manifest),
   await readText("popup/popup.html"),
   await readText("popup/popup.js"),
+  await readText("cancellations/cancellations.html"),
+  await readText("cancellations/cancellations.js"),
   await readText("options/options.html"),
   await readText("options/options.js"),
 ];
@@ -105,7 +110,11 @@ for (const source of localizedFiles) {
   }
 }
 
-for (const htmlPath of ["popup/popup.html", "options/options.html"]) {
+for (const htmlPath of [
+  "popup/popup.html",
+  "options/options.html",
+  "cancellations/cancellations.html",
+]) {
   const html = await readText(htmlPath);
   assert(
     !/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/i.test(html),

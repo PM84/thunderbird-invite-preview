@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 
+import { invitation } from "./fixtures.js";
+
 const data = {
   pendingPreviews: Object.fromEntries([
     preview("source-1", "preview-calendar", "event-1", {
@@ -15,6 +17,24 @@ const data = {
       participationStatus: "ACCEPTED",
     }),
   ]),
+  pendingCancellations: {
+    "review-1": {
+      id: "review-1",
+      sourceId: "cancel-source",
+      icalText: "BEGIN:VCALENDAR\r\nMETHOD:CANCEL\r\nEND:VCALENDAR\r\n",
+      calendarId: "target-calendar",
+      itemId: "cancelled-event",
+      recurrenceId: null,
+      calendarName: "Synthetic calendar",
+      title: "Synthetic cancellation",
+      allDay: false,
+      receivedAt: 200,
+      firstSeenAt: 200,
+      lastSeenAt: 200,
+      receivedCount: 1,
+      lastError: null,
+    },
+  },
 };
 const storage = {
   async get(key) {
@@ -31,16 +51,36 @@ const transferPendingEvent = createEvent();
 const installedEvent = createEvent();
 const startupEvent = createEvent();
 const messageEvent = createEvent();
+const windowRemovedEvent = createEvent();
 let inspectCount = 0;
 const inspectCalls = [];
 const stageCalls = [];
 let queryCount = 0;
 let resolveQuery;
+const createdWindows = [];
+const focusedWindows = [];
+const deletedCancellations = [];
+const sentRuntimeMessages = [];
 
 globalThis.messenger = {
   storage: { local: storage },
   messages: {
     onNewMailReceived: newMailEvent,
+    async listInlineTextParts(messageId) {
+      return messageId >= 100
+        ? [{
+          contentType: "text/calendar",
+          content: invitation({
+            method: "CANCEL",
+            uid: `cancelled-${messageId}@example.test`,
+            sequence: "2",
+          }),
+        }]
+        : [];
+    },
+    async listAttachments() {
+      return [];
+    },
     async query() {
       queryCount += 1;
       return new Promise(resolve => {
@@ -66,16 +106,56 @@ globalThis.messenger = {
           itemId: "event-2-restored",
         };
       }
+      if (icalText.includes("METHOD:CANCEL")) {
+        const itemId = icalText.match(/UID:([^\r\n]+)/)?.[1];
+        return {
+          status: "cancellationPending",
+          pending: false,
+          cancellations: [{
+            calendarId: "target-calendar",
+            itemId,
+            calendarName: "Synthetic calendar",
+            title: "Synthetic cancellation",
+            allDay: false,
+            recurrenceId: null,
+          }],
+        };
+      }
       return { status: "noCalendar", pending: false };
     },
     async remove() {
       return true;
+    },
+    async deleteCancellation(icalText, calendarId, itemId, recurrenceId) {
+      deletedCancellations.push({ icalText, calendarId, itemId, recurrenceId });
+      return {
+        status: itemId === "cancelled-101@example.test"
+          ? "calendarError"
+          : "deleted",
+      };
     },
   },
   runtime: {
     onInstalled: installedEvent,
     onStartup: startupEvent,
     onMessage: messageEvent,
+    getURL(path) {
+      return `moz-extension://synthetic.example.test/${path}`;
+    },
+    async sendMessage(message) {
+      sentRuntimeMessages.push(message);
+    },
+  },
+  windows: {
+    onRemoved: windowRemovedEvent,
+    async create(details) {
+      createdWindows.push(details);
+      return { id: 42 };
+    },
+    async update(windowId, details) {
+      focusedWindows.push({ windowId, details });
+      return { id: windowId };
+    },
   },
 };
 
@@ -83,6 +163,7 @@ await import("../src/background.js");
 
 const state = await messageEvent.fire({ type: "getState" });
 assert.equal(state.pendingCount, 3);
+assert.equal(state.cancellationCount, 1);
 assert.equal(inspectCalls[0][0].preferredCalendarId, "fallback-calendar");
 assert.equal(stageCalls.length, 2);
 assert.deepEqual(stageCalls[1].details, {
@@ -95,6 +176,54 @@ assert.deepEqual(
   Object.values(data.pendingPreviews).map(item => item.itemId),
   ["event-1", "event-2-restored", "event-4"]
 );
+
+const reviews = await messageEvent.fire({ type: "getCancellationReviews" });
+assert.equal(reviews.length, 1);
+assert.equal("icalText" in reviews[0], false);
+assert.equal("sourceId" in reviews[0], false);
+assert.equal("calendarId" in reviews[0], false);
+assert.equal("itemId" in reviews[0], false);
+
+await messageEvent.fire({ type: "openCancellationReview" });
+await messageEvent.fire({ type: "openCancellationReview" });
+assert.equal(createdWindows.length, 1);
+assert.equal(createdWindows[0].type, "popup");
+assert.equal("focused" in createdWindows[0], false);
+assert.equal(focusedWindows.length, 1);
+
+const deletion = await messageEvent.fire({
+  type: "deleteCancellation",
+  id: "review-1",
+});
+assert.equal(deletion.status, "deleted");
+assert.equal(deletedCancellations.length, 1);
+assert.equal(data.pendingCancellations["review-1"], undefined);
+
+windowRemovedEvent.fire(42);
+newMailEvent.fire(null, {
+  messages: [
+    { id: 100, junk: false, date: "2026-09-02T10:00:00.000Z" },
+    { id: 101, junk: false, date: "2026-09-02T11:00:00.000Z" },
+  ],
+  id: null,
+});
+await waitFor(() => Object.keys(data.pendingCancellations).length === 2);
+assert.equal(createdWindows.length, 2, "one cancellation batch opens one review window");
+assert.deepEqual(sentRuntimeMessages.at(-1), {
+  type: "cancellationReviewsChanged",
+});
+
+const deleteAllResult = await messageEvent.fire({ type: "deleteAllCancellations" });
+assert.deepEqual(deleteAllResult, { deletedCount: 1, failedCount: 1 });
+const remainingReviews = await messageEvent.fire({ type: "getCancellationReviews" });
+assert.equal(remainingReviews.length, 1);
+assert.equal(remainingReviews[0].lastError, "calendarError");
+
+await messageEvent.fire({
+  type: "dismissCancellation",
+  id: remainingReviews[0].id,
+});
+assert.deepEqual(await messageEvent.fire({ type: "getCancellationReviews" }), []);
 
 transferPendingEvent.fire({
   sourceId: "source-1",
@@ -150,4 +279,14 @@ function preview(sourceId, calendarId, itemId, extra = {}) {
 
 function nextTask() {
   return new Promise(resolve => setImmediate(resolve));
+}
+
+async function waitFor(condition) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await nextTask();
+  }
+  assert.fail("Timed out waiting for background work");
 }

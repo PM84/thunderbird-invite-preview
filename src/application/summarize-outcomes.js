@@ -6,6 +6,7 @@ export function summarizeOutcomes(outcomes) {
     scannedCount: outcomes.length,
     stagedCount:
       countStatus(statuses, "staged") + countStatus(statuses, "updated"),
+    cancellationCount: countStatus(statuses, "cancellationPending"),
     noCalendarCount: countStatus(statuses, "noCalendar"),
     error: errorCount > 0,
     errorCount,
