@@ -61,6 +61,7 @@ const createdWindows = [];
 const focusedWindows = [];
 const deletedCancellations = [];
 const sentRuntimeMessages = [];
+let resolveCancellationReviewWindow = null;
 
 globalThis.messenger = {
   storage: { local: storage },
@@ -150,6 +151,7 @@ globalThis.messenger = {
     onRemoved: windowRemovedEvent,
     async create(details) {
       createdWindows.push(details);
+      resolveCancellationReviewWindow?.();
       return { id: 42 };
     },
     async update(windowId, details) {
@@ -200,6 +202,9 @@ assert.equal(deletedCancellations.length, 1);
 assert.equal(data.pendingCancellations["review-1"], undefined);
 
 windowRemovedEvent.fire(42);
+const cancellationReviewWindow = new Promise(resolve => {
+  resolveCancellationReviewWindow = resolve;
+});
 newMailEvent.fire(null, {
   messages: [
     { id: 100, junk: false, date: "2026-09-02T10:00:00.000Z" },
@@ -207,7 +212,9 @@ newMailEvent.fire(null, {
   ],
   id: null,
 });
-await waitFor(() => Object.keys(data.pendingCancellations).length === 2);
+await cancellationReviewWindow;
+resolveCancellationReviewWindow = null;
+assert.equal(Object.keys(data.pendingCancellations).length, 2);
 assert.equal(createdWindows.length, 2, "one cancellation batch opens one review window");
 assert.deepEqual(sentRuntimeMessages.at(-1), {
   type: "cancellationReviewsChanged",
@@ -279,14 +286,4 @@ function preview(sourceId, calendarId, itemId, extra = {}) {
 
 function nextTask() {
   return new Promise(resolve => setImmediate(resolve));
-}
-
-async function waitFor(condition) {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (condition()) {
-      return;
-    }
-    await nextTask();
-  }
-  assert.fail("Timed out waiting for background work");
 }
