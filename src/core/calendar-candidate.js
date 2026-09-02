@@ -47,12 +47,40 @@ export async function createCalendarCandidate(icalText) {
 
   return {
     type: "calendar",
+    method,
     icalText,
     actionable:
-      method === "CANCEL" ||
+      (method === "CANCEL" && hasOrganizer) ||
       (method === "REQUEST" && hasOrganizer && attendeeCount > 0),
+    eventScopes: await createEventScopes(components),
     fingerprint: await createFingerprint(method, components),
   };
+}
+
+async function createEventScopes(components) {
+  return Promise.all(
+    components.map(async component => {
+      const recurrenceId = stringValue(
+        component.getFirstPropertyValue("recurrence-id")
+      );
+      const identity = [
+        stringValue(component.getFirstPropertyValue("uid")),
+        recurrenceId,
+        stringValue(component.getFirstPropertyValue("organizer")).toLowerCase(),
+      ];
+      const digest = await globalThis.crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(JSON.stringify(identity))
+      );
+      return {
+        eventKey: [...new Uint8Array(digest)]
+          .map(byte => byte.toString(16).padStart(2, "0"))
+          .join(""),
+        recurrenceId: recurrenceId || null,
+        sequence: Number(component.getFirstPropertyValue("sequence")) || 0,
+      };
+    })
+  );
 }
 
 function assertCalendarSize(icalText) {

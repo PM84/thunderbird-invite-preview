@@ -15,11 +15,13 @@ over inherited identities. A selected fallback or Thunderbird's default is
 used only when no calendar email matches. Thunderbird renders pending invitations with reduced opacity and a
 dotted outline. Accept, tentatively accept, or decline them using Thunderbird's
 existing invitation view. Accepted events are then transferred to the selected
-target calendar; declined events are not added there. Processing is local, with
+target calendar; declined events are not added there. Cancellations for accepted
+events open a review window and never remove calendar data without explicit user
+confirmation. Processing is local, with
 no analytics, telemetry, advertising, or remote services operated by the
 developer.
 
-## Version 1.0.1 notes
+## Version 1.1.0 notes
 
 - Supports inline and attached `METHOD:REQUEST` invitations and cancellations.
 - Adds a user-triggered history scan with a configurable 60-day default.
@@ -37,6 +39,10 @@ developer.
 - Transfers accepted and tentatively accepted events to the selected calendar,
   retaining the local copy for retry until the target write succeeds.
 - Removes declined previews without adding an event to the target calendar.
+- Adds a persistent cancellation review window with list and detail views,
+  chevron navigation, individual dismissal/removal, and confirmed bulk removal.
+- Automatically removes only pending local previews; accepted events require an
+  explicit user action and are revalidated immediately before deletion.
 - Includes German and English localization.
 
 ## Before submission
@@ -48,6 +54,6 @@ developer.
   URL and `PRIVACY.md` on the `main` branch as the privacy-policy URL.
 - Capture screenshots in German and English without personal calendar data.
 - Confirm the permanent UUID and developer display name.
-- Upload `dist/invite-preview-1.0.1.xpi` and explain the narrowly scoped Experiment
+- Upload `dist/invite-preview-1.1.0.xpi` and explain the narrowly scoped Experiment
   API in reviewer notes.
 - Follow `docs/releasing.md` to enable automatic submissions for later versions.

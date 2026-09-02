@@ -11,6 +11,9 @@ tentative, and decline responses.
 
 - Detects inline and attached `VEVENT` invitations using `METHOD:REQUEST`.
 - Applies `METHOD:CANCEL` messages to pending previews created by the add-on.
+- Opens a cancellation review window for accepted events. Users can inspect,
+  dismiss, remove individually, or confirm removal of all listed events; real
+  calendar events are never removed automatically.
 - Scans new non-junk mail automatically.
 - Scans existing incoming mail on demand over a configurable period of 1 to
 	3650 days, with a default of 60 days.
@@ -30,7 +33,7 @@ are outside the supported scope.
 
 ## Compatibility
 
-Version `1.0.1` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
+Version `1.1.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
 Experiment API because Thunderbird does not provide a stable MailExtension
 calendar API. Each new Thunderbird major version requires the manual test plan
 before the manifest compatibility range is expanded.
@@ -49,7 +52,7 @@ npm audit
 ```
 
 `npm run check` runs ESLint, all unit tests, release-structure validation, and
-creates `dist/invite-preview-1.0.1.xpi`. The build copies the pinned `ical.js`
+creates `dist/invite-preview-1.1.0.xpi`. The build copies the pinned `ical.js`
 release byte-for-byte and packages readable source without bundling,
 transpilation, or minification.
 

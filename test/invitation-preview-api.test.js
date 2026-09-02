@@ -12,6 +12,7 @@ const attendee = {
 let previewCalendar = null;
 let calendarObserver = null;
 let transferredItem = null;
+let storedCalendarItem = null;
 let cleanupCount = 0;
 const calendar = {
   id: "calendar-1",
@@ -33,8 +34,20 @@ const calendar = {
   async addItem(item) {
     item.calendar = this;
     transferredItem = item;
+    storedCalendarItem = item;
     calendarObserver?.onAddItem(item);
     return item;
+  },
+  async getItem(itemId) {
+    return storedCalendarItem?.id === itemId ? storedCalendarItem : null;
+  },
+  async modifyItem(item) {
+    item.calendar = this;
+    storedCalendarItem = item;
+    return item;
+  },
+  async deleteItem() {
+    storedCalendarItem = null;
   },
 };
 const secondaryCalendar = {
@@ -165,6 +178,9 @@ const cal = {
     },
     cleanupItipItem() {
       cleanupCount += 1;
+    },
+    compareSequence() {
+      return 0;
     },
   },
 };
@@ -504,6 +520,122 @@ assert.equal(
   attendee.id
 );
 
+userCalendars.length = 0;
+userCalendars.push(calendar);
+attendee.id = "mailto:user@example.test";
+receivedItem = createItem("event-cancel-review");
+receivedItem.calendar = calendar;
+storedCalendarItem = receivedItem;
+itipItem.receivedMethod = "CANCEL";
+const cancellationReviewResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-cancel-review",
+  preferredCalendarId: null,
+});
+assert.equal(cancellationReviewResult.status, "cancellationPending");
+assert.equal(cancellationReviewResult.cancellations.length, 1);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(cancellationReviewResult.cancellations[0])),
+  {
+    calendarId: calendar.id,
+    itemId: receivedItem.id,
+    calendarName: calendar.name,
+    title: "Synthetic event",
+    startDate: "2026-09-03T09:00:00.000Z",
+    endDate: "2026-09-03T10:00:00.000Z",
+    allDay: false,
+    organizer: "Synthetic Organizer",
+    recurrenceId: null,
+  }
+);
+assert.equal(storedCalendarItem.id, receivedItem.id, "review creation never deletes an event");
+
+const deletionResult = await api.deleteCancellation(
+  "BEGIN:VCALENDAR",
+  calendar.id,
+  receivedItem.id,
+  null
+);
+assert.equal(deletionResult.status, "deleted");
+assert.equal(storedCalendarItem, null);
+
+receivedItem = createItem("event-cancel-mismatch");
+receivedItem.organizer = {
+  id: "mailto:different-organizer@example.test",
+  commonName: "Different Organizer",
+};
+storedCalendarItem = createItem(receivedItem.id);
+const mismatchResult = await api.deleteCancellation(
+  "BEGIN:VCALENDAR",
+  calendar.id,
+  receivedItem.id,
+  null
+);
+assert.equal(mismatchResult.status, "mismatch");
+assert.equal(storedCalendarItem.id, receivedItem.id);
+
+const recurrenceId = {
+  icalString: "20260910T090000Z",
+  compare(other) {
+    return this.icalString.localeCompare(other.icalString);
+  },
+};
+const occurrence = createItem("event-series");
+occurrence.recurrenceId = recurrenceId;
+receivedItem = createItem("event-series");
+receivedItem.recurrenceId = recurrenceId;
+const seriesItem = createItem("event-series");
+seriesItem.calendar = calendar;
+seriesItem.recurrenceInfo = {
+  getOccurrenceFor(requestedId) {
+    return requestedId.icalString === recurrenceId.icalString ? occurrence : null;
+  },
+};
+let removedOccurrence = null;
+seriesItem.clone = () => {
+  const clone = createItem(seriesItem.id);
+  clone.calendar = calendar;
+  clone.recurrenceInfo = {
+    getOccurrenceFor: seriesItem.recurrenceInfo.getOccurrenceFor,
+    removeOccurrenceAt(requestedId) {
+      removedOccurrence = requestedId.icalString;
+    },
+  };
+  return clone;
+};
+storedCalendarItem = seriesItem;
+const occurrenceReview = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-cancel-occurrence",
+  preferredCalendarId: null,
+});
+assert.equal(occurrenceReview.status, "cancellationPending");
+assert.equal(occurrenceReview.cancellations[0].recurrenceId, recurrenceId.icalString);
+const occurrenceDeletion = await api.deleteCancellation(
+  "BEGIN:VCALENDAR",
+  calendar.id,
+  seriesItem.id,
+  recurrenceId.icalString
+);
+assert.equal(occurrenceDeletion.status, "deleted");
+assert.equal(removedOccurrence, recurrenceId.icalString);
+assert.equal(storedCalendarItem.id, seriesItem.id, "the recurring parent remains stored");
+
+receivedItem = createItem("event-series-without-recurrence-data");
+receivedItem.recurrenceId = recurrenceId;
+storedCalendarItem = createItem(receivedItem.id);
+storedCalendarItem.calendar = calendar;
+const unsafeOccurrenceDeletion = await api.deleteCancellation(
+  "BEGIN:VCALENDAR",
+  calendar.id,
+  storedCalendarItem.id,
+  recurrenceId.icalString
+);
+assert.equal(unsafeOccurrenceDeletion.status, "mismatch");
+assert.equal(
+  storedCalendarItem.id,
+  receivedItem.id,
+  "an occurrence cancellation never deletes a master without recurrence data"
+);
+
 extensionApi.onShutdown(false);
 
 function createTestCalendar() {
@@ -519,8 +651,8 @@ function createTestCalendar() {
     setProperty(name, value) {
       calendarProperties.set(name, value);
     },
-    async getItem() {
-      return this.currentItem;
+    async getItem(itemId) {
+      return this.currentItem?.id === itemId ? this.currentItem : null;
     },
     async addItem(newItem) {
       newItem.calendar = this;
@@ -543,7 +675,21 @@ function createItem(id, initialProperties = new Map()) {
   const properties = new Map(initialProperties);
   const item = {
     id,
+    title: "Synthetic event",
     calendar: null,
+    organizer: {
+      id: "mailto:organizer@example.test",
+      commonName: "Synthetic Organizer",
+    },
+    startDate: {
+      isDate: false,
+      jsDate: new Date("2026-09-03T09:00:00.000Z"),
+    },
+    endDate: {
+      jsDate: new Date("2026-09-03T10:00:00.000Z"),
+    },
+    recurrenceId: null,
+    recurrenceInfo: null,
     stampTime: "stamp",
     lastModifiedTime: "modified",
     getProperty(name) {

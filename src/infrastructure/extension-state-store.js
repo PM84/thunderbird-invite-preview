@@ -7,7 +7,11 @@ const DEFAULT_SETTINGS = Object.freeze({
 const SETTINGS_KEY = "settings";
 const PROCESSED_KEY = "processedInvitations";
 const PREVIEWS_KEY = "pendingPreviews";
+const CANCELLATIONS_KEY = "pendingCancellations";
+const CANCELLATION_MARKERS_KEY = "cancellationMarkers";
 const MAX_PROCESSED_ENTRIES = 2000;
+const MAX_CANCELLATIONS = 500;
+const MAX_CANCELLATION_MARKERS = 2000;
 const MAX_HISTORY_DAYS = 3650;
 
 export class ExtensionStateStore {
@@ -75,6 +79,99 @@ export class ExtensionStateStore {
     await this.#update(PREVIEWS_KEY, {}, () => indexed);
   }
 
+  async trackCancellation(cancellation) {
+    const id = await cancellationKey(cancellation);
+    let storedCancellation;
+    await this.#update(CANCELLATIONS_KEY, {}, cancellations => {
+      const existing = cancellations[id];
+      const isLatest = !existing || cancellation.receivedAt >= existing.lastSeenAt;
+      storedCancellation = {
+        ...existing,
+        ...(isLatest ? cancellation : {}),
+        id,
+        firstSeenAt: Math.min(
+          existing?.firstSeenAt ?? cancellation.receivedAt,
+          cancellation.receivedAt
+        ),
+        lastSeenAt: Math.max(
+          existing?.lastSeenAt ?? cancellation.receivedAt,
+          cancellation.receivedAt
+        ),
+        receivedCount: (existing?.receivedCount || 0) + 1,
+        lastError: isLatest ? null : existing.lastError,
+      };
+      cancellations[id] = storedCancellation;
+      const entries = Object.entries(cancellations).sort(
+        ([, first], [, second]) => second.lastSeenAt - first.lastSeenAt
+      );
+      return Object.fromEntries(entries.slice(0, MAX_CANCELLATIONS));
+    });
+    return storedCancellation;
+  }
+
+  async getCancellation(id) {
+    await this.writeQueue;
+    const stored = await this.storageArea.get(CANCELLATIONS_KEY);
+    return stored[CANCELLATIONS_KEY]?.[id] || null;
+  }
+
+  async listCancellations() {
+    await this.writeQueue;
+    const stored = await this.storageArea.get(CANCELLATIONS_KEY);
+    return Object.values(stored[CANCELLATIONS_KEY] || {}).sort(
+      (first, second) => second.lastSeenAt - first.lastSeenAt
+    );
+  }
+
+  async removeCancellation(id) {
+    await this.#update(CANCELLATIONS_KEY, {}, cancellations => {
+      delete cancellations[id];
+      return cancellations;
+    });
+  }
+
+  async markCancellationError(id, status) {
+    await this.#update(CANCELLATIONS_KEY, {}, cancellations => {
+      if (cancellations[id]) {
+        cancellations[id] = {
+          ...cancellations[id],
+          lastError: status,
+        };
+      }
+      return cancellations;
+    });
+  }
+
+  async recordCancellation(eventScopes, recordedAt) {
+    await this.#update(CANCELLATION_MARKERS_KEY, {}, markers => {
+      for (const scope of eventScopes) {
+        const existing = markers[scope.eventKey];
+        if (!existing || scope.sequence >= existing.sequence) {
+          markers[scope.eventKey] = {
+            sequence: scope.sequence,
+            recordedAt: Math.max(existing?.recordedAt || 0, recordedAt),
+          };
+        }
+      }
+      const entries = Object.entries(markers).sort(
+        ([, first], [, second]) => second.recordedAt - first.recordedAt
+      );
+      return Object.fromEntries(entries.slice(0, MAX_CANCELLATION_MARKERS));
+    });
+  }
+
+  async isCancelled(eventScopes) {
+    await this.writeQueue;
+    const primaryScope =
+      eventScopes.find(scope => scope.recurrenceId === null) || eventScopes[0];
+    if (!primaryScope) {
+      return false;
+    }
+    const stored = await this.storageArea.get(CANCELLATION_MARKERS_KEY);
+    const marker = stored[CANCELLATION_MARKERS_KEY]?.[primaryScope.eventKey];
+    return Boolean(marker && marker.sequence >= primaryScope.sequence);
+  }
+
   async #update(key, fallback, updateValue) {
     this.writeQueue = this.writeQueue.then(async () => {
       const stored = await this.storageArea.get(key);
@@ -99,6 +196,20 @@ export function normalizeSettings(value = {}) {
 
 function previewKey(preview) {
   return JSON.stringify([preview.calendarId, preview.itemId]);
+}
+
+async function cancellationKey(cancellation) {
+  const input = new TextEncoder().encode(
+    JSON.stringify([
+      cancellation.calendarId,
+      cancellation.itemId,
+      cancellation.recurrenceId || null,
+    ])
+  );
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", input);
+  return [...new Uint8Array(digest)]
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function normalizeHistoryDays(value) {

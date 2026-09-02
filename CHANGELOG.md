@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 - 2026-09-02
+
+- Remove cancelled pending previews automatically after organizer and revision
+  validation.
+- Queue cancellations for events in real calendars without deleting them.
+- Open a focused cancellation review window with a complete list, detail
+  navigation, individual removal, dismissal, and user-confirmed bulk removal.
+- Revalidate the cancellation against the live calendar item before every
+  deletion and retain failed operations for retry.
+- Apply occurrence cancellations to only the specified recurring instance.
+- Prevent older invitations discovered by history scans from reappearing after
+  a newer cancellation by storing bounded pseudonymous revision markers.
+
 ## 1.0.1 - 2026-09-01
 
 - Match invitations to the email identity configured on each calendar before

@@ -64,3 +64,65 @@ assert.deepEqual(await store.listPreviews(), [
 ]);
 await store.resolveSource("a");
 assert.deepEqual(await store.listPreviews(), []);
+
+const firstCancellation = await store.trackCancellation({
+  sourceId: "cancel-1",
+  calendarId: "calendar-1",
+  itemId: "event-1",
+  recurrenceId: null,
+  title: "Synthetic event",
+  receivedAt: 100,
+});
+assert.equal(firstCancellation.receivedCount, 1);
+assert.match(firstCancellation.id, /^[a-f0-9]{64}$/);
+assert.equal((await store.listCancellations()).length, 1);
+
+const updatedCancellation = await store.trackCancellation({
+  sourceId: "cancel-2",
+  calendarId: "calendar-1",
+  itemId: "event-1",
+  recurrenceId: null,
+  title: "Updated synthetic event",
+  receivedAt: 200,
+});
+assert.equal(updatedCancellation.id, firstCancellation.id);
+assert.equal(updatedCancellation.receivedCount, 2);
+assert.equal(updatedCancellation.firstSeenAt, 100);
+assert.equal(updatedCancellation.lastSeenAt, 200);
+assert.equal((await store.listCancellations())[0].title, "Updated synthetic event");
+
+await store.markCancellationError(firstCancellation.id, "calendarError");
+assert.equal((await store.getCancellation(firstCancellation.id)).lastError, "calendarError");
+const olderCancellation = await store.trackCancellation({
+  sourceId: "cancel-older",
+  calendarId: "calendar-1",
+  itemId: "event-1",
+  recurrenceId: null,
+  title: "Older synthetic event",
+  receivedAt: 50,
+});
+assert.equal(olderCancellation.title, "Updated synthetic event");
+assert.equal(olderCancellation.firstSeenAt, 50);
+assert.equal(olderCancellation.lastSeenAt, 200);
+assert.equal(olderCancellation.receivedCount, 3);
+assert.equal(olderCancellation.lastError, "calendarError");
+await store.removeCancellation(firstCancellation.id);
+assert.deepEqual(await store.listCancellations(), []);
+
+const seriesScope = {
+  eventKey: "a".repeat(64),
+  recurrenceId: null,
+  sequence: 2,
+};
+await store.recordCancellation([seriesScope], 300);
+assert.equal(await store.isCancelled([{ ...seriesScope, sequence: 1 }]), true);
+assert.equal(await store.isCancelled([{ ...seriesScope, sequence: 2 }]), true);
+assert.equal(await store.isCancelled([{ ...seriesScope, sequence: 3 }]), false);
+assert.equal(
+  await store.isCancelled([{
+    eventKey: "b".repeat(64),
+    recurrenceId: null,
+    sequence: 1,
+  }]),
+  false
+);

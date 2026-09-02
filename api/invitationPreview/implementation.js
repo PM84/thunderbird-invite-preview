@@ -322,6 +322,20 @@
             return pending;
           },
 
+          deleteCancellation: async (icalText, calendarId, itemId, recurrenceId) => {
+            try {
+              return await deleteCancellation(
+                icalText,
+                calendarId,
+                itemId,
+                recurrenceId
+              );
+            } catch (error) {
+              console.error("Invite Preview could not delete a cancelled event", error);
+              return { status: "calendarError" };
+            }
+          },
+
           remove: async (calendarId, itemId) => {
             const calendar = cal.manager.getCalendarById(calendarId);
             const item = await calendar?.getItem(itemId);
@@ -383,11 +397,21 @@
 
     if (method === "CANCEL") {
       const existing = await previewCalendar.getItem(items[0].id);
-      if (!isPreview(existing, extensionId)) {
-        return result("alreadyProcessed");
+      if (isPreview(existing, extensionId)) {
+        const cancelled = await applyPendingCancellation(
+          previewCalendar,
+          existing,
+          items
+        );
+        return cancelled
+          ? result("cancelled", false, previewCalendar.id, existing.id)
+          : result("alreadyProcessed");
       }
-      await previewCalendar.deleteItem(existing);
-      return result("cancelled", false, previewCalendar.id, existing.id);
+
+      const cancellations = await cancellationCandidates(items, calendars);
+      return cancellations.length > 0
+        ? { ...result("cancellationPending"), cancellations }
+        : result("alreadyProcessed");
     }
 
     const existingPreview = await previewCalendar.getItem(items[0].id);
@@ -577,6 +601,185 @@
     );
     const index = items.findIndex(Boolean);
     return index === -1 ? null : calendars[index];
+  }
+
+  async function cancellationCandidates(cancellationItems, calendars) {
+    const foundItems = await findItemsInCalendars(calendars, cancellationItems[0].id);
+    const candidates = [];
+    for (const cancellationItem of cancellationItems) {
+      for (const { calendar, item } of foundItems) {
+        const targetItem = cancellationTarget(item, cancellationItem.recurrenceId);
+        if (targetItem && cancellationMatches(cancellationItem, targetItem)) {
+          candidates.push(cancellationCandidate(calendar, item, targetItem, cancellationItem));
+        }
+      }
+    }
+    return candidates;
+  }
+
+  async function findItemsInCalendars(calendars, itemId) {
+    const items = await Promise.all(
+      calendars.map(calendar =>
+        withTimeout(
+          Promise.resolve().then(() => localCalendarCache(calendar).getItem(itemId)),
+          ITEM_LOOKUP_TIMEOUT_MS,
+          "Calendar lookup timed out"
+        ).catch(() => null)
+      )
+    );
+    return items.flatMap((item, index) =>
+      item ? [{ calendar: calendars[index], item }] : []
+    );
+  }
+
+  function cancellationTarget(item, recurrenceId) {
+    if (!recurrenceId) {
+      return item;
+    }
+    if (item.recurrenceInfo) {
+      return item.recurrenceInfo.getOccurrenceFor(recurrenceId);
+    }
+    return item.recurrenceId?.compare(recurrenceId) === 0 ? item : null;
+  }
+
+  function cancellationMatches(cancellationItem, targetItem) {
+    try {
+      return (
+        normalizeEmail(cancellationItem.organizer?.id) !== "" &&
+        normalizeEmail(cancellationItem.organizer?.id) ===
+          normalizeEmail(targetItem.organizer?.id) &&
+        cal.itip.compareSequence(cancellationItem, targetItem) >= 0
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function applyPendingCancellation(calendar, item, cancellationItems) {
+    const fullCancellation = cancellationItems.find(
+      cancellationItem =>
+        !cancellationItem.recurrenceId && cancellationMatches(cancellationItem, item)
+    );
+    if (fullCancellation) {
+      await calendar.deleteItem(item);
+      return true;
+    }
+
+    if (!item.recurrenceInfo) {
+      const matchingOccurrence = cancellationItems.some(cancellationItem => {
+        const targetItem = cancellationTarget(item, cancellationItem.recurrenceId);
+        return targetItem && cancellationMatches(cancellationItem, targetItem);
+      });
+      if (matchingOccurrence) {
+        await calendar.deleteItem(item);
+      }
+      return matchingOccurrence;
+    }
+
+    const updatedItem = item.clone();
+    let modified = false;
+    for (const cancellationItem of cancellationItems) {
+      if (!cancellationItem.recurrenceId) {
+        continue;
+      }
+      const targetItem = cancellationTarget(item, cancellationItem.recurrenceId);
+      if (targetItem && cancellationMatches(cancellationItem, targetItem)) {
+        updatedItem.recurrenceInfo.removeOccurrenceAt(cancellationItem.recurrenceId);
+        modified = true;
+      }
+    }
+    if (modified) {
+      await calendar.modifyItem(updatedItem, item);
+    }
+    return modified;
+  }
+
+  function cancellationCandidate(calendar, item, targetItem, cancellationItem) {
+    return {
+      calendarId: calendar.id,
+      itemId: item.id,
+      calendarName: calendar.name,
+      title: targetItem.title || cancellationItem.title || "",
+      ...(dateTimeIso(targetItem.startDate) ? {
+        startDate: dateTimeIso(targetItem.startDate),
+      } : {}),
+      ...(dateTimeIso(targetItem.endDate) ? {
+        endDate: dateTimeIso(targetItem.endDate),
+      } : {}),
+      allDay: Boolean(targetItem.startDate?.isDate),
+      ...(organizerLabel(targetItem.organizer) ? {
+        organizer: organizerLabel(targetItem.organizer),
+      } : {}),
+      recurrenceId: cancellationItem.recurrenceId?.icalString || null,
+    };
+  }
+
+  async function deleteCancellation(icalText, calendarId, itemId, recurrenceId) {
+    const itipItem = Cc["@mozilla.org/calendar/itip-item;1"].createInstance(
+      Ci.calIItipItem
+    );
+    itipItem.init(icalText);
+    try {
+      if (String(itipItem.receivedMethod || "").toUpperCase() !== "CANCEL") {
+        return { status: "mismatch" };
+      }
+      const cancellationItem = itipItem.getItemList().find(item =>
+        recurrenceId
+          ? item.recurrenceId?.icalString === recurrenceId
+          : !item.recurrenceId
+      );
+      if (!cancellationItem || cancellationItem.id !== itemId) {
+        return { status: "mismatch" };
+      }
+
+      const calendar = cal.manager.getCalendarById(calendarId);
+      if (!calendar || calendar.id === PREVIEW_CALENDAR_ID) {
+        return { status: "missing" };
+      }
+      const item = await withTimeout(
+        Promise.resolve().then(() => localCalendarCache(calendar).getItem(itemId)),
+        ITEM_LOOKUP_TIMEOUT_MS,
+        "Calendar lookup timed out"
+      );
+      if (!item) {
+        return { status: "missing" };
+      }
+      const targetItem = cancellationTarget(item, cancellationItem.recurrenceId);
+      if (!targetItem || !cancellationMatches(cancellationItem, targetItem)) {
+        return { status: "mismatch" };
+      }
+
+      if (!cancellationItem.recurrenceId || !item.recurrenceInfo) {
+        await withTimeout(
+          calendar.deleteItem(item),
+          TRANSFER_TIMEOUT_MS,
+          "Calendar deletion timed out"
+        );
+      } else {
+        const updatedItem = item.clone();
+        updatedItem.recurrenceInfo.removeOccurrenceAt(cancellationItem.recurrenceId);
+        await withTimeout(
+          calendar.modifyItem(updatedItem, item),
+          TRANSFER_TIMEOUT_MS,
+          "Calendar modification timed out"
+        );
+      }
+      return { status: "deleted" };
+    } finally {
+      cal.itip.cleanupItipItem(itipItem);
+    }
+  }
+
+  function dateTimeIso(dateTime) {
+    try {
+      return dateTime?.jsDate?.toISOString() || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function organizerLabel(organizer) {
+    return organizer?.commonName || normalizeEmail(organizer?.id);
   }
 
   function calendarHasIndexedItem(calendar, itemId) {

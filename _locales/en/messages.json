@@ -14,6 +14,25 @@
   "pendingInvitations": {
     "message": "Pending invitations"
   },
+  "pendingCancellations": {
+    "message": "Cancellations to review"
+  },
+  "reviewCancellations": {
+    "message": "Review cancellations"
+  },
+  "cancellationReviewOpened": {
+    "message": "Opened $COUNT$ cancellation(s) for review.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "historyCancellationReviewOpened": {
+    "message": "Scanned $DAYS$ days: opened $COUNT$ cancellation(s) for review.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
   "scanDisplayed": {
     "message": "Scan displayed message"
   },
@@ -109,6 +128,107 @@
       "removed": { "content": "$1" },
       "failed": { "content": "$2" }
     }
+  },
+  "cancellationReviewEyebrow": {
+    "message": "Calendar changes"
+  },
+  "cancellationReviewTitle": {
+    "message": "Cancelled invitations"
+  },
+  "cancellationReviewSummary": {
+    "message": "Events remain in their calendars until you remove them."
+  },
+  "noCancellationReviews": {
+    "message": "There are no cancellations to review."
+  },
+  "deleteAllCancellations": {
+    "message": "Remove all from calendars"
+  },
+  "confirmDeleteAllCancellations": {
+    "message": "Remove all $COUNT$ cancelled events from their calendars?",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "cancelledInvitation": {
+    "message": "Invitation cancelled"
+  },
+  "cancellationCalendar": {
+    "message": "Calendar"
+  },
+  "cancellationDate": {
+    "message": "Date"
+  },
+  "cancellationOrganizer": {
+    "message": "Organizer"
+  },
+  "cancellationReceived": {
+    "message": "Cancellation received"
+  },
+  "deleteCancellation": {
+    "message": "Remove from calendar"
+  },
+  "dismissCancellation": {
+    "message": "Keep event and dismiss"
+  },
+  "confirmDeleteCancellation": {
+    "message": "Remove “$TITLE$” from its calendar?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "cancellationDeleted": {
+    "message": "The event was removed from its calendar."
+  },
+  "cancellationsDeleted": {
+    "message": "Removed $COUNT$ cancelled event(s).",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "cancellationsDeletePartial": {
+    "message": "Removed $DELETED$ event(s); $FAILED$ could not be removed.",
+    "placeholders": {
+      "deleted": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "cancellationDismissed": {
+    "message": "The event was kept and the notice was dismissed."
+  },
+  "cancellationMismatch": {
+    "message": "The calendar event no longer matches this cancellation and was not removed."
+  },
+  "cancellationDeleteFailed": {
+    "message": "The event could not be removed. It remains available for another attempt."
+  },
+  "cancellationPreviousError": {
+    "message": "A previous removal attempt failed."
+  },
+  "cancellationPosition": {
+    "message": "$CURRENT$ of $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "untitledEvent": {
+    "message": "Untitled event"
+  },
+  "dateUnavailable": {
+    "message": "Date unavailable"
+  },
+  "closeWindow": {
+    "message": "Close"
+  },
+  "backToCancellationList": {
+    "message": "Back to list"
+  },
+  "previousCancellation": {
+    "message": "Previous cancellation"
+  },
+  "nextCancellation": {
+    "message": "Next cancellation"
   },
   "settingsTitle": {
     "message": "Invite Preview settings"
