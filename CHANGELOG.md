@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 - 2026-09-03
+
+- Combine pending invitations and accepted-event cancellations in one review
+  window with separate tabs, shared detail navigation, and confirmed bulk
+  invitation acceptance.
+- Open the review window for newly received actionable invitations and
+  cancellations, using Thunderbird's configured calendar reminder sound.
+- Accept pending invitations from the review window through Thunderbird's iTIP
+  reply transport and transfer them to the selected target calendar.
+- Mark the corresponding invitation or cancellation email as read after a
+  successful review action, including stable lookup after restarts or moves.
+- Reduce the toolbar popup to mailbox scan, preview cleanup, and review-window
+  actions while retaining invitation and cancellation counts and settings.
+
 ## 1.1.0 - 2026-09-02
 
 - Remove cancelled pending previews automatically after organizer and revision

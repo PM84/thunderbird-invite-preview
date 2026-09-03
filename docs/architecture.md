@@ -9,13 +9,16 @@ flowchart LR
   Gateway --> Experiment[Minimal Experiment API]
   Experiment --> ITIP[Thunderbird iTIP model]
   ITIP --> Preview[Local memory preview calendar]
+  Preview --> Review[Invitation review window]
   Preview --> NativeUI[Native invitation UI]
+  Review -->|accept and send REPLY| Experiment
   NativeUI -->|accept or tentative| Experiment
   Experiment -->|add, then remove preview| Calendar[Selected user calendar]
   Extractors -->|CANCEL| CancelRouter[Cancellation router]
   CancelRouter -->|pending preview| Preview
-  CancelRouter -->|accepted event| Review[Cancellation review window]
+  CancelRouter -->|accepted event| Review
   Review -->|user confirms| Calendar
+  Review -->|successful action| ReadMail[Mark source mail read]
 ```
 
 ## Stable MailExtension layer
@@ -54,6 +57,12 @@ folders. Read state is deliberately not filtered.
   organizer, sequence, calendar, and recurrence scope before deletion.
 13. stores bounded SHA-256 markers derived from UID, organizer, and recurrence
   scope so history scans cannot recreate an older cancelled invitation.
+14. accepts only owned `NEEDS-ACTION` items from the dedicated preview calendar,
+  uses Thunderbird's iTIP message sender for the `ACCEPTED` reply, and then
+  transfers the item through the existing guarded path; an already accepted
+  failed transfer can be retried without a second reply;
+15. uses Thunderbird's configured calendar reminder sound when a new review
+  window opens.
 
 Thunderbird 154's remote cached calendar model can indefinitely block item
 access while building its global recurrence cache. The dedicated memory calendar
@@ -72,9 +81,15 @@ Using the original UID is intentional. Thunderbird can then update the same
 event for a later request, avoid duplicates, and process the user's response in
 place. Existing accepted events are never replaced automatically. Cancellation
 messages remove pending previews automatically. Real-calendar events are never
-removed without an explicit action in the cancellation review window. A series
+removed without an explicit action in the shared review window. A series
 cancellation deletes the series; a cancellation carrying `RECURRENCE-ID`
 removes only that occurrence.
+
+The review window receives display-safe objects only. Native calendar IDs, item
+IDs, complete ICS payloads, and Thunderbird message references remain in the
+background. After a successful acceptance or confirmed cancellation removal,
+the background verifies the transient message ID against the RFC Message-ID and
+falls back to a bounded folder/global lookup before setting `read: true`.
 
 ## Security boundaries
 
@@ -84,5 +99,6 @@ removes only that occurrence.
 - Only validated `METHOD:CANCEL` data can remove a staged item or be offered for
   explicit real-calendar deletion.
 - The Experiment does not expose arbitrary file, network, preference, or DOM
-  access to the MailExtension layer.
+  access to the review UI. Its sound method reads only Thunderbird's calendar
+  alarm preferences and delegates playback to `NotificationSounds`.
 - There is no remote code, telemetry, HTML rendering, or dynamic code execution.

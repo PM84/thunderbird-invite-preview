@@ -29,11 +29,14 @@ The add-on stores these values in Thunderbird's local extension storage:
 - calendar and event identifiers for pending previews;
 - the selected target and response status while a failed transfer is pending;
 - complete ICS payloads only for pending previews, so the local memory calendar
-	can be restored after Thunderbird restarts.
+	can be restored after Thunderbird restarts;
 - complete cancellation ICS payloads while an accepted-event cancellation is
-  awaiting review, so it can be revalidated before a user-requested deletion.
+  awaiting review, so it can be revalidated before a user-requested deletion;
 - bounded SHA-256 cancellation markers with sequence numbers, so an older
-	invitation found later cannot recreate a cancelled preview.
+	invitation found later cannot recreate a cancelled preview; and
+- local Thunderbird message references, RFC Message-IDs, and original folder
+  identifiers for pending review entries, so the corresponding email can be
+  found and marked as read after a restart or move.
 
 The add-on does not store message bodies. Stored ICS payloads are removed after
 the invitation or cancellation review is resolved, dismissed, or cleared.
@@ -44,8 +47,9 @@ A pending invitation is written to a dedicated local calendar created by the
 add-on. A target calendar whose configured email matches the invited identity
 is selected first. If none matches, the configured fallback or Thunderbird's
 default calendar is used. The pending preview is not uploaded to that target.
-After the user accepts or tentatively accepts, Invite
-Preview adds the event to that exact calendar through Thunderbird. A remote
+After the user accepts or tentatively accepts, Invite Preview adds the event to
+that exact calendar through Thunderbird. Acceptance in the review window also
+uses Thunderbird's iTIP transport to send the normal reply to the organizer. A remote
 calendar provider may then synchronize it normally. The local preview is
 removed only after the target accepts the event. A failed transfer is retained
 and retried without sending another RSVP. Declining removes the local preview
@@ -60,19 +64,27 @@ again immediately before deletion. Failed or mismatched operations remain in
 the review queue until retried or dismissed.
 
 Staging an invitation does not send an RSVP. Thunderbird may send an RSVP only
-after the user explicitly accepts, tentatively accepts, or declines through
-Thunderbird's invitation controls and according to Thunderbird's own response
-settings.
+after the user explicitly responds through Thunderbird's invitation controls or
+accepts in the review window. Successful invitation acceptance and confirmed
+cancellation removal mark the corresponding source email as read. Dismissing a
+cancellation without removing the event does not change the email's read state.
+
+Opening a new review window uses the calendar reminder sound configured in
+Thunderbird. If calendar reminder sounds are disabled, the add-on remains
+silent.
 
 Removing pending previews deletes those events from the local preview calendar.
 
 ## Permissions
 
-The add-on requests `messagesRead`, `accountsRead`, and `storage`. It also uses a
-bundled Thunderbird Experiment because no stable MailExtension calendar API is
-available. Thunderbird therefore displays its full, unrestricted access warning
-during installation even though the Experiment only exposes the calendar
-operations documented in this project's source code.
+The add-on requests `messagesRead`, `messagesUpdate`, `accountsRead`, and
+`storage`. `messagesUpdate` is used only to mark a source invitation or
+cancellation email as read after the associated user-confirmed action. The add-on
+also uses a bundled Thunderbird Experiment because no stable MailExtension
+calendar API is available. Thunderbird therefore displays its full,
+unrestricted access warning during installation even though the Experiment only
+exposes the calendar and reminder-sound operations documented in this project's
+source code.
 
 ## Contact
 

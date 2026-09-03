@@ -3,7 +3,7 @@
 ## Summary
 
 Shows unconfirmed email invitations in the calendar without blocking
-availability. Respond using Thunderbird's native invitation controls.
+availability. Review invitations and cancellations in one focused window.
 
 ## Description
 
@@ -13,15 +13,17 @@ them in a local preview calendar and selects a calendar whose email identity
 matches the invited identity. Explicit calendar assignments take precedence
 over inherited identities. A selected fallback or Thunderbird's default is
 used only when no calendar email matches. Thunderbird renders pending invitations with reduced opacity and a
-dotted outline. Accept, tentatively accept, or decline them using Thunderbird's
-existing invitation view. Accepted events are then transferred to the selected
-target calendar; declined events are not added there. Cancellations for accepted
-events open a review window and never remove calendar data without explicit user
-confirmation. Processing is local, with
+dotted outline. A shared review window opens for new actionable invitations or
+cancellations and uses the configured calendar reminder sound. Pending
+invitations can be accepted there or handled in Thunderbird's existing
+invitation view. Accepted events are transferred to the selected target
+calendar. Cancellations for accepted events never remove calendar data without
+explicit user confirmation. A successful review action marks its source email
+as read. Processing is local, with
 no analytics, telemetry, advertising, or remote services operated by the
 developer.
 
-## Version 1.1.0 notes
+## Version 1.2.0 notes
 
 - Supports inline and attached `METHOD:REQUEST` invitations and cancellations.
 - Adds a user-triggered history scan with a configurable 60-day default.
@@ -39,8 +41,13 @@ developer.
 - Transfers accepted and tentatively accepted events to the selected calendar,
   retaining the local copy for retry until the target write succeeds.
 - Removes declined previews without adding an event to the target calendar.
-- Adds a persistent cancellation review window with list and detail views,
-  chevron navigation, individual dismissal/removal, and confirmed bulk removal.
+- Adds a shared review window with invitation and cancellation tabs, list and
+  detail views, individual or confirmed bulk invitation acceptance, individual
+  cancellation dismissal or removal, and confirmed bulk removal.
+- Opens the review window for new actionable email and plays Thunderbird's
+  configured calendar reminder sound.
+- Marks the associated email as read after a successful invitation acceptance
+  or confirmed cancellation removal.
 - Automatically removes only pending local previews; accepted events require an
   explicit user action and are revalidated immediately before deletion.
 - Includes German and English localization.
@@ -54,6 +61,6 @@ developer.
   URL and `PRIVACY.md` on the `main` branch as the privacy-policy URL.
 - Capture screenshots in German and English without personal calendar data.
 - Confirm the permanent UUID and developer display name.
-- Upload `dist/invite-preview-1.1.0.xpi` and explain the narrowly scoped Experiment
+- Upload `dist/invite-preview-1.2.0.xpi` and explain the narrowly scoped Experiment
   API in reviewer notes.
 - Follow `docs/releasing.md` to enable automatic submissions for later versions.

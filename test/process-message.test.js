@@ -40,7 +40,13 @@ const dependencies = {
   },
 };
 
-const outcomes = await processMessage({ id: 42, junk: false }, dependencies);
+const outcomes = await processMessage({
+  id: 42,
+  headerMessageId: "request@example.test",
+  folder: { id: "inbox" },
+  junk: false,
+  date: "2026-09-02T08:00:00.000Z",
+}, dependencies);
 
 assert.equal(outcomes[0].status, "staged");
 assert.equal(calls.length, 1);
@@ -48,6 +54,17 @@ assert.equal(calls[0].details.preferredCalendarId, "calendar-1");
 assert.equal(tracked[0].itemId, "meeting@example.test");
 assert.equal(tracked[0].icalText, candidate.icalText);
 assert.equal(tracked[0].preferredCalendarId, "calendar-1");
+assert.equal(tracked[0].title, "Planning");
+assert.equal(tracked[0].startDate, "2026-09-02T09:00:00.000Z");
+assert.equal(tracked[0].endDate, "2026-09-02T10:00:00.000Z");
+assert.equal(tracked[0].allDay, false);
+assert.equal(tracked[0].organizer, "organizer@example.test");
+assert.equal(tracked[0].receivedAt, Date.parse("2026-09-02T08:00:00.000Z"));
+assert.deepEqual(tracked[0].sourceMessage, {
+  messageId: 42,
+  headerMessageId: "request@example.test",
+  folderId: "inbox",
+});
 
 const unsupportedCalendarExtractor = {
   async extract() {
@@ -95,7 +112,13 @@ const cancellationCandidate = await createCalendarCandidate(
   invitation({ method: "CANCEL", sequence: "2" })
 );
 const cancellationOutcomes = await processMessage(
-  { id: 46, junk: false, date: "2026-09-02T10:00:00.000Z" },
+  {
+    id: 46,
+    headerMessageId: "cancel@example.test",
+    folder: { id: "inbox" },
+    junk: false,
+    date: "2026-09-02T10:00:00.000Z",
+  },
   {
     ...dependencies,
     extractors: [{ async extract() { return [cancellationCandidate]; } }],
@@ -124,6 +147,11 @@ assert.equal(trackedCancellations.length, 1);
 assert.equal(trackedCancellations[0].sourceId, cancellationCandidate.fingerprint);
 assert.equal(trackedCancellations[0].icalText, cancellationCandidate.icalText);
 assert.equal(trackedCancellations[0].receivedAt, Date.parse("2026-09-02T10:00:00.000Z"));
+assert.deepEqual(trackedCancellations[0].sourceMessage, {
+  messageId: 46,
+  headerMessageId: "cancel@example.test",
+  folderId: "inbox",
+});
 assert.equal(cancellationMarkers.length, 1);
 assert.deepEqual(cancellationMarkers[0].eventScopes, cancellationCandidate.eventScopes);
 

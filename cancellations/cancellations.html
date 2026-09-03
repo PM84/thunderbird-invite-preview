@@ -3,66 +3,81 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title data-i18n="cancellationReviewTitle"></title>
+    <title data-i18n="reviewWindowTitle"></title>
     <link rel="stylesheet" href="cancellations.css">
   </head>
   <body>
     <header class="window-header">
       <div>
-        <p class="eyebrow" data-i18n="cancellationReviewEyebrow"></p>
-        <h1 data-i18n="cancellationReviewTitle"></h1>
+        <p class="eyebrow" data-i18n="reviewWindowEyebrow"></p>
+        <h1 data-i18n="reviewWindowTitle"></h1>
       </div>
       <button id="close" class="icon-button" type="button" aria-label="Close" title="Close">&times;</button>
     </header>
 
     <main>
+      <nav id="review-tabs" class="review-tabs" role="tablist">
+        <button id="invitations-tab" type="button" role="tab" aria-controls="list-view" aria-selected="true">
+          <span data-i18n="invitationReviewTab"></span>
+          <strong id="invitation-count">0</strong>
+        </button>
+        <button id="cancellations-tab" type="button" role="tab" aria-controls="list-view" aria-selected="false">
+          <span data-i18n="cancellationReviewTab"></span>
+          <strong id="cancellation-count">0</strong>
+        </button>
+      </nav>
+
       <section id="list-view">
         <div class="list-summary">
-          <p data-i18n="cancellationReviewSummary"></p>
+          <p id="list-heading"></p>
           <strong id="review-count">0</strong>
         </div>
-        <p id="empty-state" class="empty-state" data-i18n="noCancellationReviews" hidden></p>
+        <p id="empty-state" class="empty-state" hidden></p>
         <ul id="review-list" class="review-list"></ul>
-        <div class="action-bar">
-          <button id="delete-all" class="danger" type="button" data-i18n="deleteAllCancellations"></button>
+        <div id="list-actions" class="action-bar">
+          <button id="accept-all" class="primary" type="button" data-i18n="acceptAllInvitations"></button>
+          <button id="delete-all" class="danger" type="button" data-i18n="deleteAllCancellations" hidden></button>
         </div>
       </section>
 
       <section id="detail-view" hidden>
-        <nav class="detail-navigation" aria-label="Cancellation navigation">
+        <nav id="detail-navigation" class="detail-navigation">
           <button id="back" class="icon-button" type="button" aria-label="Back to list" title="Back to list">&#8592;</button>
           <span id="position"></span>
           <div class="chevrons">
-            <button id="previous" class="icon-button" type="button" aria-label="Previous cancellation" title="Previous cancellation">&#8249;</button>
-            <button id="next" class="icon-button" type="button" aria-label="Next cancellation" title="Next cancellation">&#8250;</button>
+            <button id="previous" class="icon-button" type="button" aria-label="Previous" title="Previous">&#8249;</button>
+            <button id="next" class="icon-button" type="button" aria-label="Next" title="Next">&#8250;</button>
           </div>
         </nav>
 
         <article class="detail-content">
-          <p class="status-label" data-i18n="cancelledInvitation"></p>
+          <p id="detail-kind" class="status-label"></p>
           <h2 id="detail-title"></h2>
           <dl>
-            <div>
-              <dt data-i18n="cancellationCalendar"></dt>
+            <div id="calendar-row">
+              <dt data-i18n="reviewCalendar"></dt>
               <dd id="detail-calendar"></dd>
             </div>
             <div>
-              <dt data-i18n="cancellationDate"></dt>
+              <dt data-i18n="reviewDate"></dt>
               <dd id="detail-date"></dd>
             </div>
             <div id="organizer-row">
-              <dt data-i18n="cancellationOrganizer"></dt>
+              <dt data-i18n="reviewOrganizer"></dt>
               <dd id="detail-organizer"></dd>
             </div>
             <div>
-              <dt data-i18n="cancellationReceived"></dt>
+              <dt id="received-label"></dt>
               <dd id="detail-received"></dd>
             </div>
           </dl>
           <p id="detail-error" class="error" role="status" aria-live="polite"></p>
         </article>
 
-        <div class="action-bar split">
+        <div id="invitation-actions" class="action-bar" hidden>
+          <button id="accept-invitation" class="primary" type="button" data-i18n="acceptInvitation"></button>
+        </div>
+        <div id="cancellation-actions" class="action-bar split" hidden>
           <button id="dismiss" class="secondary" type="button" data-i18n="dismissCancellation"></button>
           <button id="delete-one" class="danger" type="button" data-i18n="deleteCancellation"></button>
         </div>
