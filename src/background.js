@@ -12,8 +12,9 @@ import { ExtensionStateStore } from "./infrastructure/extension-state-store.js";
 const stateStore = new ExtensionStateStore(messenger.storage.local);
 const extractors = [new IcsExtractor(messenger.messages)];
 const processingMessages = new Set();
-const acceptingInvitations = new Set();
+const respondingInvitations = new Set();
 const deletingCancellations = new Set();
+const RESPONSE_STATUSES = new Set(["ACCEPTED", "TENTATIVE", "DECLINED"]);
 let historyScanPromise = null;
 let restorePromise = null;
 let cancellationWindowId = null;
@@ -37,6 +38,7 @@ messenger.invitationPreview.onTransferPending.addListener(transfer => {
   void stateStore.markTransferPending(transfer.sourceId, {
     targetCalendarId: transfer.targetCalendarId,
     participationStatus: transfer.participationStatus,
+    replyPending: transfer.replyPending === true,
   });
 });
 
@@ -74,6 +76,8 @@ messenger.runtime.onMessage.addListener(request => {
       return openReview("cancellations");
     case "acceptInvitation":
       return acceptInvitation(request.id);
+    case "respondInvitation":
+      return respondInvitation(request.id, request.participationStatus);
     case "acceptAllInvitations":
       return acceptAllInvitations();
     case "deleteCancellation":
@@ -298,29 +302,43 @@ async function openReviewNow(section) {
 }
 
 async function acceptInvitation(id) {
-  if (acceptingInvitations.has(id)) {
+  const outcome = await respondInvitation(id, "ACCEPTED");
+  return outcome.status === "responded"
+    ? { ...outcome, status: "accepted" }
+    : outcome;
+}
+
+async function respondInvitation(id, requestedStatus) {
+  const participationStatus = String(requestedStatus || "").toUpperCase();
+  if (!RESPONSE_STATUSES.has(participationStatus)) {
+    return { status: "mismatch", messageRead: false };
+  }
+  if (respondingInvitations.has(id)) {
     return { status: "busy", messageRead: false };
   }
-  acceptingInvitations.add(id);
+  respondingInvitations.add(id);
   try {
-    return await acceptInvitationNow(id);
+    return await respondInvitationNow(id, participationStatus);
   } finally {
-    acceptingInvitations.delete(id);
+    respondingInvitations.delete(id);
   }
 }
 
-async function acceptInvitationNow(id) {
+async function respondInvitationNow(id, participationStatus) {
   const preview = (await stateStore.listPreviews()).find(
     item => item.sourceId === id
   );
   if (!preview) {
     return { status: "missing", messageRead: false };
   }
-  const outcome = await messenger.invitationPreview.acceptPreview(
+  const outcome = await messenger.invitationPreview.respondPreview(
     preview.calendarId,
-    preview.itemId
+    preview.itemId,
+    participationStatus,
+    preview.participationStatus !== participationStatus ||
+      preview.replyPending === true
   );
-  if (outcome.status !== "accepted") {
+  if (outcome.status !== "responded") {
     if (outcome.status === "missing") {
       await stateStore.resolveSource(preview.sourceId);
       await notifyReviewItemsChanged();
@@ -540,6 +558,7 @@ async function restorePreviewsNow() {
       preferredCalendarId: preview.preferredCalendarId || null,
       targetCalendarId: preview.targetCalendarId || null,
       participationStatus: preview.participationStatus || null,
+      ...(preview.replyPending === true ? { replyPending: true } : {}),
     });
     if (outcome.pending && outcome.calendarId && outcome.itemId) {
       restoredPreviews.push({

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0 - 2026-09-03
+
+- Add Accept, Tentative, and Decline actions to invitation details in the
+  review window.
+- Send the matching `ACCEPTED`, `TENTATIVE`, or `DECLINED` iTIP reply, mark the
+  source email as read, and avoid creating a target event for declined invites.
+
+## 1.2.1 - 2026-09-03
+
+- Fix invitation acceptance from the review window by deleting or replacing
+  the actual stored preview item instead of an unsaved clone.
+- Preserve whether an RSVP is still pending across failed transfers and
+  restarts, preventing both missed replies and duplicate replies during retry.
+
 ## 1.2.0 - 2026-09-03
 
 - Combine pending invitations and accepted-event cancellations in one review

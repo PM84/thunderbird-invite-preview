@@ -209,6 +209,12 @@
   "acceptInvitation": {
     "message": "Einladung annehmen"
   },
+  "tentativeInvitation": {
+    "message": "Unter Vorbehalt"
+  },
+  "declineInvitation": {
+    "message": "Ablehnen"
+  },
   "acceptAllInvitations": {
     "message": "Alle Einladungen akzeptieren"
   },
@@ -252,11 +258,35 @@
       "title": { "content": "$1" }
     }
   },
+  "confirmTentativeInvitation": {
+    "message": "„$TITLE$“ unter Vorbehalt annehmen und dem Organisator antworten?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "confirmDeclineInvitation": {
+    "message": "„$TITLE$“ ablehnen und dem Organisator antworten?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
   "invitationAccepted": {
     "message": "Die Einladung wurde angenommen und die zugehörige E-Mail als gelesen markiert."
   },
   "invitationAcceptedMailUnread": {
     "message": "Die Einladung wurde angenommen, aber die zugehörige E-Mail konnte nicht als gelesen markiert werden."
+  },
+  "invitationTentative": {
+    "message": "Die Einladung wurde unter Vorbehalt angenommen und die zugehörige E-Mail als gelesen markiert."
+  },
+  "invitationTentativeMailUnread": {
+    "message": "Die Einladung wurde unter Vorbehalt angenommen, aber die zugehörige E-Mail konnte nicht als gelesen markiert werden."
+  },
+  "invitationDeclined": {
+    "message": "Die Einladung wurde abgelehnt und die zugehörige E-Mail als gelesen markiert."
+  },
+  "invitationDeclinedMailUnread": {
+    "message": "Die Einladung wurde abgelehnt, aber die zugehörige E-Mail konnte nicht als gelesen markiert werden."
   },
   "invitationUnavailable": {
     "message": "Die offene Einladung ist nicht mehr verfügbar und wurde nicht geändert."

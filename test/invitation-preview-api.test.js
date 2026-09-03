@@ -316,7 +316,7 @@ assert.equal(cleanupCount, 1, "staging always cleans up the parsed iTIP item");
 attendee.participationStatus = "ACCEPTED";
 const pendingItem = previewCalendar.currentItem;
 const acceptedItem = pendingItem.clone();
-calendarObserver.onModifyItem(acceptedItem, pendingItem);
+await previewCalendar.modifyItem(acceptedItem, pendingItem);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(
   previewCalendar.currentItem,
@@ -378,6 +378,92 @@ assert.deepEqual(sentReplies.at(-1), {
   transport: null,
 });
 
+const replyCountBeforeRetry = sentReplies.length;
+receivedItem = createItem("event-modal-retry");
+attendee.participationStatus = "NEEDS-ACTION";
+const modalRetryResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-modal-retry",
+  preferredCalendarId: null,
+});
+calendar.addItem = async () => {
+  throw new Error("target write failed before reply");
+};
+assert.equal(
+  (await api.acceptPreview(
+    modalRetryResult.calendarId,
+    modalRetryResult.itemId,
+    true
+  )).status,
+  "calendarError"
+);
+assert.equal(pendingTransfers.at(-1).replyPending, true);
+assert.equal(sentReplies.length, replyCountBeforeRetry);
+calendar.addItem = async item => {
+  item.calendar = calendar;
+  transferredItem = item;
+  calendarObserver.onAddItem(item);
+  return item;
+};
+assert.equal(
+  (await api.acceptPreview(
+    modalRetryResult.calendarId,
+    modalRetryResult.itemId,
+    true
+  )).status,
+  "accepted"
+);
+assert.equal(sentReplies.length, replyCountBeforeRetry + 1);
+assert.equal(previewCalendar.currentItem, null);
+
+receivedItem = createItem("event-modal-tentative");
+attendee.participationStatus = "NEEDS-ACTION";
+const modalTentativeResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-modal-tentative",
+  preferredCalendarId: null,
+});
+transferredItem = null;
+const tentativeResponse = await api.respondPreview(
+  modalTentativeResult.calendarId,
+  modalTentativeResult.itemId,
+  "TENTATIVE",
+  true
+);
+assert.equal(tentativeResponse.status, "responded");
+assert.equal(tentativeResponse.participationStatus, "TENTATIVE");
+assert.equal(transferredItem.id, "event-modal-tentative");
+assert.equal(sentReplies.at(-1).participationStatus, "TENTATIVE");
+assert.equal(previewCalendar.currentItem, null);
+
+receivedItem = createItem("event-modal-declined");
+attendee.participationStatus = "NEEDS-ACTION";
+const modalDeclinedResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-modal-declined",
+  preferredCalendarId: null,
+});
+transferredItem = null;
+const storedTargetBeforeDecline = storedCalendarItem;
+const declinedResponse = await api.respondPreview(
+  modalDeclinedResult.calendarId,
+  modalDeclinedResult.itemId,
+  "DECLINED",
+  true
+);
+assert.equal(declinedResponse.status, "responded");
+assert.equal(declinedResponse.participationStatus, "DECLINED");
+assert.equal(transferredItem, null, "declining never creates a target event");
+assert.equal(storedCalendarItem, storedTargetBeforeDecline);
+assert.equal(sentReplies.at(-1).participationStatus, "DECLINED");
+assert.equal(previewCalendar.currentItem, null);
+assert.equal(
+  (await api.respondPreview(
+    modalDeclinedResult.calendarId,
+    "missing",
+    "INVALID",
+    true
+  )).status,
+  "mismatch"
+);
+
 assert.equal(await api.playReminderSound(), true);
 assert.deepEqual(playedSounds, ["chrome://calendar/content/sound.wav"]);
 alarmSoundType = 1;
@@ -389,6 +475,8 @@ assert.equal(await api.playReminderSound(), false);
 assert.equal(playedSounds.length, 2);
 
 transferredItem = null;
+const loggedErrorsBeforeNativeRetry = loggedErrors.length;
+const repliesBeforeNativeRetry = sentReplies.length;
 receivedItem = createItem("event-2");
 const retryResult = await api.stage("BEGIN:VCALENDAR", {
   sourceId: "source-2",
@@ -400,7 +488,7 @@ calendar.addItem = async () => {
 };
 attendee.participationStatus = "ACCEPTED";
 const retryPendingItem = previewCalendar.currentItem;
-calendarObserver.onModifyItem(retryPendingItem.clone(), retryPendingItem);
+await previewCalendar.modifyItem(retryPendingItem.clone(), retryPendingItem);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(
   previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-OWNER"),
@@ -412,22 +500,24 @@ assert.equal(
   "failed transfer retains its target for a later retry"
 );
 assert.equal(transferredItem, null);
-assert.equal(loggedErrors.length, 1);
-assert.deepEqual(JSON.parse(JSON.stringify(pendingTransfers)), [
-  {
-    sourceId: "source-2",
-    calendarId: previewCalendar.id,
-    itemId: "event-2",
-    targetCalendarId: calendar.id,
-    participationStatus: "ACCEPTED",
-  },
-]);
+assert.equal(loggedErrors.length, loggedErrorsBeforeNativeRetry + 1);
+assert.deepEqual(JSON.parse(JSON.stringify(pendingTransfers.at(-1))), {
+  sourceId: "source-2",
+  calendarId: previewCalendar.id,
+  itemId: "event-2",
+  targetCalendarId: calendar.id,
+  participationStatus: "ACCEPTED",
+});
 assert.equal(
   (await api.acceptPreview(previewCalendar.id, "event-2")).status,
   "calendarError",
   "an accepted failed transfer remains retryable from the review window"
 );
-assert.equal(sentReplies.length, 1, "retrying a transfer never sends a second RSVP");
+assert.equal(
+  sentReplies.length,
+  repliesBeforeNativeRetry,
+  "retrying a transfer never sends a second RSVP"
+);
 
 calendar.addItem = async item => {
   item.calendar = calendar;
@@ -456,7 +546,7 @@ const declinedResult = await api.stage("BEGIN:VCALENDAR", {
 assert.equal(declinedResult.status, "staged");
 attendee.participationStatus = "DECLINED";
 const declinedItem = previewCalendar.currentItem;
-calendarObserver.onModifyItem(declinedItem.clone(), declinedItem);
+await previewCalendar.modifyItem(declinedItem.clone(), declinedItem);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(previewCalendar.currentItem, null);
 assert.equal(transferredItem, null, "declined invitations are not added to the target");
@@ -489,7 +579,7 @@ const cancellationResult = await api.stage("BEGIN:VCALENDAR", {
 });
 assert.equal(cancellationResult.status, "cancelled");
 assert.equal(previewCalendar.currentItem, null);
-assert.equal(cleanupCount, 7, "every staging outcome cleans up its iTIP item");
+assert.equal(cleanupCount, 10, "every staging outcome cleans up its iTIP item");
 
 userCalendars.push(inheritedIdentityCalendar, calendar, secondaryCalendar);
 itipItem.receivedMethod = "REQUEST";
@@ -757,11 +847,21 @@ function createTestCalendar() {
       return newItem;
     },
     async modifyItem(newItem, oldItem) {
+      assert.equal(
+        oldItem,
+        this.currentItem,
+        "only the currently stored preview can be replaced"
+      );
       this.currentItem = newItem;
       calendarObserver?.onModifyItem(newItem, oldItem);
       return newItem;
     },
     async deleteItem(item) {
+      assert.equal(
+        item,
+        this.currentItem,
+        "only the currently stored preview can be deleted"
+      );
       this.currentItem = null;
       calendarObserver?.onDeleteItem(item);
     },

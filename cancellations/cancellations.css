@@ -236,6 +236,15 @@ main {
   justify-content: space-between;
 }
 
+#invitation-actions {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+#accept-invitation {
+  justify-self: end;
+}
+
 button.primary,
 button.danger {
   color: #ffffff;

@@ -14,9 +14,10 @@ cancellations; Thunderbird's native invitation controls remain available.
 - Opens a shared invitation review window for new actionable mail and plays the
 	configured Thunderbird calendar reminder sound.
 - Lists pending invitations and accepted-event cancellations on separate tabs.
-	Invitations can be accepted individually or in a confirmed batch with normal
-	iTIP replies. Cancellations can be dismissed, removed individually, or removed
-	in a confirmed batch; real calendar events are never removed automatically.
+	Invitations can be accepted, tentatively accepted, or declined individually,
+	and accepted in a confirmed batch, with matching iTIP replies. Cancellations
+	can be dismissed, removed individually, or removed in a confirmed batch; real
+	calendar events are never removed automatically.
 - Marks the corresponding email as read after an invitation is accepted or a
 	cancelled event is removed from its calendar.
 - Scans new non-junk mail automatically.
@@ -38,7 +39,7 @@ are outside the supported scope.
 
 ## Compatibility
 
-Version `1.2.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
+Version `1.3.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
 Experiment API because Thunderbird does not provide a stable MailExtension
 calendar API. Each new Thunderbird major version requires the manual test plan
 before the manifest compatibility range is expanded.
@@ -57,7 +58,7 @@ npm audit
 ```
 
 `npm run check` runs ESLint, all unit tests, release-structure validation, and
-creates `dist/invite-preview-1.2.0.xpi`. The build copies the pinned `ical.js`
+creates `dist/invite-preview-1.3.0.xpi`. The build copies the pinned `ical.js`
 release byte-for-byte and packages readable source without bundling,
 transpilation, or minification.
 
