@@ -18,6 +18,8 @@ const backButton = document.querySelector("#back");
 const previousButton = document.querySelector("#previous");
 const nextButton = document.querySelector("#next");
 const acceptInvitationButton = document.querySelector("#accept-invitation");
+const tentativeInvitationButton = document.querySelector("#tentative-invitation");
+const declineInvitationButton = document.querySelector("#decline-invitation");
 const deleteOneButton = document.querySelector("#delete-one");
 const dismissButton = document.querySelector("#dismiss");
 const invitationActions = document.querySelector("#invitation-actions");
@@ -62,7 +64,15 @@ closeButton.addEventListener("click", () => window.close());
 backButton.addEventListener("click", showList);
 previousButton.addEventListener("click", () => moveSelection(-1));
 nextButton.addEventListener("click", () => moveSelection(1));
-acceptInvitationButton.addEventListener("click", acceptSelectedInvitation);
+acceptInvitationButton.addEventListener("click", () => {
+  void respondToSelectedInvitation("ACCEPTED");
+});
+tentativeInvitationButton.addEventListener("click", () => {
+  void respondToSelectedInvitation("TENTATIVE");
+});
+declineInvitationButton.addEventListener("click", () => {
+  void respondToSelectedInvitation("DECLINED");
+});
 deleteOneButton.addEventListener("click", deleteSelectedCancellation);
 dismissButton.addEventListener("click", dismissSelectedCancellation);
 acceptAllButton.addEventListener("click", acceptAllInvitations);
@@ -222,20 +232,26 @@ function moveSelection(offset) {
   }
 }
 
-async function acceptSelectedInvitation() {
+async function respondToSelectedInvitation(participationStatus) {
   const review = currentReviews()[selectedIndex()];
-  if (!review || !confirm(message("confirmAcceptInvitation", review.title))) {
+  const messageKeys = invitationResponseMessages(participationStatus);
+  if (!review || !messageKeys || !confirm(message(messageKeys.confirm, review.title))) {
     return;
   }
   const index = selectedIndex();
-  await runBusy([acceptInvitationButton], async () => {
+  await runBusy([
+    acceptInvitationButton,
+    tentativeInvitationButton,
+    declineInvitationButton,
+  ], async () => {
     const outcome = await messenger.runtime.sendMessage({
-      type: "acceptInvitation",
+      type: "respondInvitation",
       id: review.id,
+      participationStatus,
     });
-    if (outcome.status === "accepted") {
+    if (outcome.status === "responded") {
       status.textContent = message(
-        outcome.messageRead ? "invitationAccepted" : "invitationAcceptedMailUnread"
+        outcome.messageRead ? messageKeys.success : messageKeys.mailUnread
       );
       await refreshAfterRemoval(index);
     } else if (outcome.status === "missing" || outcome.status === "mismatch") {
@@ -244,6 +260,26 @@ async function acceptSelectedInvitation() {
       detailError.textContent = message("invitationAcceptFailed");
     }
   });
+}
+
+function invitationResponseMessages(participationStatus) {
+  return {
+    ACCEPTED: {
+      confirm: "confirmAcceptInvitation",
+      success: "invitationAccepted",
+      mailUnread: "invitationAcceptedMailUnread",
+    },
+    TENTATIVE: {
+      confirm: "confirmTentativeInvitation",
+      success: "invitationTentative",
+      mailUnread: "invitationTentativeMailUnread",
+    },
+    DECLINED: {
+      confirm: "confirmDeclineInvitation",
+      success: "invitationDeclined",
+      mailUnread: "invitationDeclinedMailUnread",
+    },
+  }[participationStatus];
 }
 
 async function deleteSelectedCancellation() {

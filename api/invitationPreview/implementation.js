@@ -25,6 +25,7 @@
   const PREVIEW_CALENDAR_COLOR = "#7d8790";
   const ITEM_LOOKUP_TIMEOUT_MS = 1000;
   const TRANSFER_TIMEOUT_MS = 30000;
+  const RESPONSE_STATUSES = new Set(["ACCEPTED", "TENTATIVE", "DECLINED"]);
 
   this.invitationPreview = class extends ExtensionAPIPersistent {
     PERSISTENT_EVENTS = {
@@ -134,30 +135,60 @@
       await this.finalizeResolvedItem(newItem, sourceItem, status);
     }
 
-    async finalizeResolvedItem(resolvedItem, sourceItem, status, sendReply = false) {
-      const key = `${resolvedItem.calendar.id}\n${resolvedItem.id}`;
+    async finalizeResolvedItem(
+      resolvedItem,
+      sourceItem,
+      status,
+      sendReply = false,
+      storedItem = resolvedItem
+    ) {
+      const key = `${storedItem.calendar.id}\n${storedItem.id}`;
       if (this.cleaningItems.has(key)) {
         return false;
       }
       this.cleaningItems.add(key);
+      const transferState = { replyPending: sendReply };
       try {
-        await this.transferResolvedItem(resolvedItem, sourceItem, status, sendReply);
+        await this.transferResolvedItem(
+          resolvedItem,
+          sourceItem,
+          status,
+          sendReply,
+          storedItem,
+          transferState
+        );
         return true;
       } catch (error) {
         console.error("Invite Preview could not move a resolved invitation", error);
-        await preserveTransferMetadata(resolvedItem, sourceItem).catch(metadataError => {
+        await preserveTransferMetadata(
+          resolvedItem,
+          sourceItem,
+          storedItem
+        ).catch(metadataError => {
           console.error("Invite Preview could not preserve a pending transfer", metadataError);
         });
-        this.emitTransferPending(resolvedItem, status, sourceItem);
+        this.emitTransferPending(
+          resolvedItem,
+          status,
+          sourceItem,
+          transferState.replyPending
+        );
         return false;
       } finally {
         this.cleaningItems.delete(key);
       }
     }
 
-    async transferResolvedItem(resolvedItem, sourceItem, status, sendReply = false) {
-      if (status === "DECLINED") {
-        await resolvedItem.calendar.deleteItem(resolvedItem);
+    async transferResolvedItem(
+      resolvedItem,
+      sourceItem,
+      status,
+      sendReply = false,
+      storedItem = resolvedItem,
+      transferState = { replyPending: sendReply }
+    ) {
+      if (status === "DECLINED" && !sendReply) {
+        await storedItem.calendar.deleteItem(storedItem);
         this.emitResolution(resolvedItem, status, sourceItem);
         return;
       }
@@ -179,6 +210,16 @@
       originalTargetItem.deleteProperty(TARGET_CALENDAR_PROPERTY);
       originalTargetItem.calendar = targetCalendar;
 
+      if (status === "DECLINED") {
+        if (!sendInvitationReply(originalTargetItem, targetItem)) {
+          throw new Error("Invitation reply could not be sent");
+        }
+        transferState.replyPending = false;
+        await storedItem.calendar.deleteItem(storedItem);
+        this.emitResolution(resolvedItem, status, sourceItem);
+        return;
+      }
+
       const transferKey = `${targetCalendar.id}\n${targetItem.id}`;
       this.transferringItems.add(transferKey);
       try {
@@ -197,13 +238,12 @@
         }
 
         if (sendReply) {
-          try {
-            sendInvitationReply(originalTargetItem, targetItem);
-          } catch (error) {
-            console.error("Invite Preview could not send the invitation reply", error);
+          if (!sendInvitationReply(originalTargetItem, targetItem)) {
+            throw new Error("Invitation reply could not be sent");
           }
+          transferState.replyPending = false;
         }
-        await resolvedItem.calendar.deleteItem(resolvedItem);
+        await storedItem.calendar.deleteItem(storedItem);
         this.emitResolution(targetItem, status, sourceItem);
       } finally {
         this.transferringItems.delete(transferKey);
@@ -244,13 +284,14 @@
       }
     }
 
-    emitTransferPending(item, status, sourceItem = item) {
+    emitTransferPending(item, status, sourceItem = item, replyPending = false) {
       const transfer = {
         sourceId: sourceItem.getProperty(SOURCE_PROPERTY) || "",
         calendarId: item.calendar.id,
         itemId: item.id,
         targetCalendarId: sourceItem.getProperty(TARGET_CALENDAR_PROPERTY) || "",
         participationStatus: status,
+        ...(replyPending ? { replyPending: true } : {}),
       };
       for (const registration of this.transferFires) {
         void registration.fire.async(transfer).catch(() => {});
@@ -291,7 +332,8 @@
               const transferred = await this.finalizeResolvedItem(
                 previewItem,
                 previewItem,
-                details.participationStatus
+                details.participationStatus,
+                details.replyPending === true
               );
               return transferred
                 ? result(
@@ -340,51 +382,30 @@
             return pending;
           },
 
-          acceptPreview: async (calendarId, itemId) => {
-            try {
-              if (calendarId !== PREVIEW_CALENDAR_ID) {
-                return { status: "mismatch" };
-              }
-              const calendar = cal.manager.getCalendarById(calendarId);
-              const item = await calendar?.getItem(itemId);
-              if (!item) {
-                return { status: "missing" };
-              }
-              if (!this.isOwnedPreview(item)) {
-                return { status: "mismatch" };
-              }
-              const currentStatus = participationStatus(item);
-              if (currentStatus === "ACCEPTED") {
-                const transferred = await this.finalizeResolvedItem(
-                  item,
-                  item,
-                  "ACCEPTED"
-                );
-                return { status: transferred ? "accepted" : "calendarError" };
-              }
-              if (currentStatus !== "NEEDS-ACTION") {
-                return { status: "mismatch" };
-              }
-              const acceptedItem = item.clone();
-              const invitedAttendee = cal.itip.getInvitedAttendee(
-                acceptedItem,
-                acceptedItem.calendar
-              );
-              if (!invitedAttendee) {
-                return { status: "mismatch" };
-              }
-              invitedAttendee.participationStatus = "ACCEPTED";
-              const accepted = await this.finalizeResolvedItem(
-                acceptedItem,
-                item,
-                "ACCEPTED",
-                true
-              );
-              return { status: accepted ? "accepted" : "calendarError" };
-            } catch (error) {
-              console.error("Invite Preview could not accept an invitation", error);
-              return { status: "calendarError" };
-            }
+          respondPreview: async (
+            calendarId,
+            itemId,
+            requestedStatus,
+            sendReply = true
+          ) => respondToPreview(
+            this,
+            calendarId,
+            itemId,
+            requestedStatus,
+            sendReply
+          ),
+
+          acceptPreview: async (calendarId, itemId, sendReply = true) => {
+            const outcome = await respondToPreview(
+              this,
+              calendarId,
+              itemId,
+              "ACCEPTED",
+              sendReply
+            );
+            return outcome.status === "responded"
+              ? { status: "accepted" }
+              : { status: outcome.status };
           },
 
           playReminderSound: async () => {
@@ -447,6 +468,58 @@
       };
     }
   };
+
+  async function respondToPreview(
+    extensionApi,
+    calendarId,
+    itemId,
+    requestedStatus,
+    sendReply
+  ) {
+    try {
+      const status = String(requestedStatus || "").toUpperCase();
+      if (!RESPONSE_STATUSES.has(status) || calendarId !== PREVIEW_CALENDAR_ID) {
+        return { status: "mismatch" };
+      }
+      const calendar = cal.manager.getCalendarById(calendarId);
+      const item = await calendar?.getItem(itemId);
+      if (!item) {
+        return { status: "missing" };
+      }
+      if (!extensionApi.isOwnedPreview(item)) {
+        return { status: "mismatch" };
+      }
+      const currentStatus = participationStatus(item);
+      if (currentStatus !== status && currentStatus !== "NEEDS-ACTION") {
+        return { status: "mismatch" };
+      }
+      const responseItem = currentStatus === status ? item : item.clone();
+      if (currentStatus === "NEEDS-ACTION") {
+        const invitedAttendee = cal.itip.getInvitedAttendee(
+          responseItem,
+          responseItem.calendar
+        );
+        if (!invitedAttendee) {
+          return { status: "mismatch" };
+        }
+        invitedAttendee.participationStatus = status;
+      }
+      const responded = await extensionApi.finalizeResolvedItem(
+        responseItem,
+        item,
+        status,
+        sendReply,
+        item
+      );
+      return {
+        status: responded ? "responded" : "calendarError",
+        participationStatus: status,
+      };
+    } catch (error) {
+      console.error("Invite Preview could not respond to an invitation", error);
+      return { status: "calendarError" };
+    }
+  }
 
   async function stageInvitation(icalText, details, extensionId, previewCalendarName) {
     const itipItem = Cc["@mozilla.org/calendar/itip-item;1"].createInstance(
@@ -1001,11 +1074,12 @@
     }
   }
 
-  async function preserveTransferMetadata(item, sourceItem) {
+  async function preserveTransferMetadata(item, sourceItem, storedItem = item) {
     const preservedItem = item.clone();
     copyPreviewMetadata(preservedItem, sourceItem);
     restoreOriginalTransparency(preservedItem);
-    return item.calendar.modifyItem(preservedItem, item);
+    preservedItem.calendar = storedItem.calendar;
+    return storedItem.calendar.modifyItem(preservedItem, storedItem);
   }
 
   function restoreOriginalTransparency(item) {

@@ -57,10 +57,11 @@ folders. Read state is deliberately not filtered.
   organizer, sequence, calendar, and recurrence scope before deletion.
 13. stores bounded SHA-256 markers derived from UID, organizer, and recurrence
   scope so history scans cannot recreate an older cancelled invitation.
-14. accepts only owned `NEEDS-ACTION` items from the dedicated preview calendar,
-  uses Thunderbird's iTIP message sender for the `ACCEPTED` reply, and then
-  transfers the item through the existing guarded path; an already accepted
-  failed transfer can be retried without a second reply;
+14. responds only to owned `NEEDS-ACTION` items from the dedicated preview
+  calendar, uses Thunderbird's iTIP message sender for `ACCEPTED`, `TENTATIVE`,
+  or `DECLINED`, transfers accepted or tentative items through the guarded path,
+  and removes declined previews without creating a target event; a failed
+  transfer can be retried without a second reply;
 15. uses Thunderbird's configured calendar reminder sound when a new review
   window opens.
 

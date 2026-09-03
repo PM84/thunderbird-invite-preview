@@ -19,6 +19,8 @@ for (const id of [
   "previous",
   "next",
   "accept-invitation",
+  "tentative-invitation",
+  "decline-invitation",
   "delete-one",
   "dismiss",
 ]) {
@@ -32,8 +34,10 @@ assert.ok(
 assert.match(html, /<ul id="review-list"/);
 assert.match(script, /document\.createElement\("li"\)/);
 assert.match(script, /type: "getInvitationReviews"/);
-assert.match(script, /type: "acceptInvitation"/);
 assert.match(script, /type: "acceptAllInvitations"/);
+assert.match(script, /type: "respondInvitation"/);
+assert.match(script, /"TENTATIVE"/);
+assert.match(script, /"DECLINED"/);
 assert.match(script, /type: "deleteCancellation"/);
 assert.match(script, /type: "deleteAllCancellations"/);
 assert.match(script, /type: "dismissCancellation"/);

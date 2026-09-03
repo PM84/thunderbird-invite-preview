@@ -15,7 +15,9 @@ configured for the same email address.
    time as busy.
 6. Open the invitation detail in the review window, accept it, and confirm one
    normal RSVP is sent, the event reaches the selected target calendar, and the
-   source email is marked as read.
+    source email is marked as read. Repeat with **Tentative** and verify a
+    `TENTATIVE` reply and target event. Repeat with **Decline** and verify a
+    `DECLINED` reply and read source email without a target event.
 7. Stage multiple invitations, choose **Accept all invitations**, confirm the
     prompt, and verify each successful event and email while a simulated failed
     target write remains listed for retry.
@@ -25,8 +27,8 @@ configured for the same email address.
 10. Confirm Thunderbird handles one RSVP prompt/send, the event appears in the
     selected target calendar with its original `TRANSP` value, and the local
     preview is removed only after the target write succeeds.
-11. Repeat with tentative acceptance. Then decline a separate invitation and
-    confirm no event is added to the target calendar.
+11. Repeat tentative acceptance and decline through Thunderbird's native
+    invitation controls, confirming the same calendar outcomes.
 12. Repeat with an attached `.ics` file using `application/octet-stream`.
 13. Deliver the same message twice and confirm only one event exists.
 14. Deliver a higher `SEQUENCE` update and confirm the pending event changes.

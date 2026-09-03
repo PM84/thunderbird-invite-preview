@@ -44,6 +44,10 @@
               { "type": "null" }
             ],
             "optional": true
+          },
+          "replyPending": {
+            "type": "boolean",
+            "optional": true
           }
         }
       },
@@ -108,6 +112,21 @@
         }
       },
       {
+        "id": "ResponseResult",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["responded", "missing", "mismatch", "calendarError"]
+          },
+          "participationStatus": {
+            "type": "string",
+            "enum": ["ACCEPTED", "TENTATIVE", "DECLINED"],
+            "optional": true
+          }
+        }
+      },
+      {
         "id": "CancellationResult",
         "type": "object",
         "properties": {
@@ -153,6 +172,10 @@
           "participationStatus": {
             "type": "string",
             "enum": ["ACCEPTED", "TENTATIVE", "DECLINED"]
+          },
+          "replyPending": {
+            "type": "boolean",
+            "optional": true
           }
         }
       }
@@ -195,12 +218,37 @@
         }
       },
       {
+        "name": "respondPreview",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "calendarId", "type": "string" },
+          { "name": "itemId", "type": "string" },
+          {
+            "name": "participationStatus",
+            "type": "string",
+            "enum": ["ACCEPTED", "TENTATIVE", "DECLINED"]
+          },
+          {
+            "name": "sendReply",
+            "type": "boolean",
+            "optional": true
+          }
+        ],
+        "returns": { "$ref": "ResponseResult" }
+      },
+      {
         "name": "acceptPreview",
         "type": "function",
         "async": true,
         "parameters": [
           { "name": "calendarId", "type": "string" },
-          { "name": "itemId", "type": "string" }
+          { "name": "itemId", "type": "string" },
+          {
+            "name": "sendReply",
+            "type": "boolean",
+            "optional": true
+          }
         ],
         "returns": { "$ref": "AcceptanceResult" }
       },

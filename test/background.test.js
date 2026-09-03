@@ -108,6 +108,8 @@ globalThis.messenger = {
         100: "cancel-100@example.test",
         101: "cancel-101@example.test",
         102: "incoming-invitation@example.test",
+        103: "tentative-invitation@example.test",
+        104: "declined-invitation@example.test",
       };
       return {
         id: messageId,
@@ -187,10 +189,16 @@ globalThis.messenger = {
           : "deleted",
       };
     },
-    async acceptPreview(calendarId, itemId) {
-      acceptedInvitations.push({ calendarId, itemId });
+    async respondPreview(calendarId, itemId, participationStatus, sendReply) {
+      acceptedInvitations.push({
+        calendarId,
+        itemId,
+        participationStatus,
+        sendReply,
+      });
       return {
-        status: itemId === "event-4" ? "calendarError" : "accepted",
+        status: itemId === "event-4" ? "calendarError" : "responded",
+        participationStatus,
       };
     },
     async playReminderSound() {
@@ -271,10 +279,16 @@ const acceptance = await messageEvent.fire({
   type: "acceptInvitation",
   id: "source-2",
 });
-assert.deepEqual(acceptance, { status: "accepted", messageRead: true });
+assert.deepEqual(acceptance, {
+  status: "accepted",
+  participationStatus: "ACCEPTED",
+  messageRead: true,
+});
 assert.deepEqual(acceptedInvitations, [{
   calendarId: "preview-calendar",
   itemId: "event-2-restored",
+  participationStatus: "ACCEPTED",
+  sendReply: true,
 }]);
 assert.equal(
   Object.values(data.pendingPreviews).some(item => item.sourceId === "source-2"),
@@ -401,6 +415,77 @@ assert.deepEqual(updatedMessages.at(-1), {
   messageId: 102,
   properties: { read: true },
 });
+assert.deepEqual(acceptedInvitations.slice(-2), [
+  {
+    calendarId: "preview-calendar",
+    itemId: "event-4",
+    participationStatus: "ACCEPTED",
+    sendReply: false,
+  },
+  {
+    calendarId: "preview-calendar",
+    itemId: "cancelled-102@example.test",
+    participationStatus: "ACCEPTED",
+    sendReply: true,
+  },
+]);
+
+Object.assign(data.pendingPreviews, Object.fromEntries([
+  preview("source-tentative", "preview-calendar", "event-tentative", {
+    sourceMessage: {
+      messageId: 103,
+      headerMessageId: "tentative-invitation@example.test",
+    },
+  }),
+  preview("source-declined", "preview-calendar", "event-declined", {
+    sourceMessage: {
+      messageId: 104,
+      headerMessageId: "declined-invitation@example.test",
+    },
+  }),
+]));
+assert.deepEqual(
+  await messageEvent.fire({
+    type: "respondInvitation",
+    id: "source-tentative",
+    participationStatus: "TENTATIVE",
+  }),
+  { status: "responded", participationStatus: "TENTATIVE", messageRead: true }
+);
+assert.deepEqual(
+  await messageEvent.fire({
+    type: "respondInvitation",
+    id: "source-declined",
+    participationStatus: "DECLINED",
+  }),
+  { status: "responded", participationStatus: "DECLINED", messageRead: true }
+);
+assert.deepEqual(acceptedInvitations.slice(-2), [
+  {
+    calendarId: "preview-calendar",
+    itemId: "event-tentative",
+    participationStatus: "TENTATIVE",
+    sendReply: true,
+  },
+  {
+    calendarId: "preview-calendar",
+    itemId: "event-declined",
+    participationStatus: "DECLINED",
+    sendReply: true,
+  },
+]);
+assert.deepEqual(updatedMessages.slice(-2), [
+  { messageId: 103, properties: { read: true } },
+  { messageId: 104, properties: { read: true } },
+]);
+assert.deepEqual(
+  await messageEvent.fire({
+    type: "respondInvitation",
+    id: "source-declined",
+    participationStatus: "INVALID",
+  }),
+  { status: "mismatch", messageRead: false }
+);
 
 const firstScan = messageEvent.fire({ type: "scanHistory" });
 const secondScan = messageEvent.fire({ type: "scanHistory" });

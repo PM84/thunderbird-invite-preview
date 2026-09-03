@@ -27,7 +27,8 @@ The add-on stores these values in Thunderbird's local extension storage:
 - SHA-256 revision fingerprints used to avoid processing the same invitation
 	twice;
 - calendar and event identifiers for pending previews;
-- the selected target and response status while a failed transfer is pending;
+- the selected target, response status, and whether an RSVP remains pending
+	while a failed transfer is retained;
 - complete ICS payloads only for pending previews, so the local memory calendar
 	can be restored after Thunderbird restarts;
 - complete cancellation ICS payloads while an accepted-event cancellation is
@@ -65,9 +66,10 @@ the review queue until retried or dismissed.
 
 Staging an invitation does not send an RSVP. Thunderbird may send an RSVP only
 after the user explicitly responds through Thunderbird's invitation controls or
-accepts in the review window. Successful invitation acceptance and confirmed
-cancellation removal mark the corresponding source email as read. Dismissing a
-cancellation without removing the event does not change the email's read state.
+chooses Accept, Tentative, or Decline in the review window. Successful invitation
+responses and confirmed cancellation removal mark the corresponding source email
+as read. Dismissing a cancellation without removing the event does not change
+the email's read state.
 
 Opening a new review window uses the calendar reminder sound configured in
 Thunderbird. If calendar reminder sounds are disabled, the add-on remains

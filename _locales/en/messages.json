@@ -209,6 +209,12 @@
   "acceptInvitation": {
     "message": "Accept invitation"
   },
+  "tentativeInvitation": {
+    "message": "Tentative"
+  },
+  "declineInvitation": {
+    "message": "Decline"
+  },
   "acceptAllInvitations": {
     "message": "Accept all invitations"
   },
@@ -252,11 +258,35 @@
       "title": { "content": "$1" }
     }
   },
+  "confirmTentativeInvitation": {
+    "message": "Tentatively accept “$TITLE$” and send a response to the organizer?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "confirmDeclineInvitation": {
+    "message": "Decline “$TITLE$” and send a response to the organizer?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
   "invitationAccepted": {
     "message": "The invitation was accepted and its email was marked as read."
   },
   "invitationAcceptedMailUnread": {
     "message": "The invitation was accepted, but its email could not be marked as read."
+  },
+  "invitationTentative": {
+    "message": "The invitation was tentatively accepted and its email was marked as read."
+  },
+  "invitationTentativeMailUnread": {
+    "message": "The invitation was tentatively accepted, but its email could not be marked as read."
+  },
+  "invitationDeclined": {
+    "message": "The invitation was declined and its email was marked as read."
+  },
+  "invitationDeclinedMailUnread": {
+    "message": "The invitation was declined, but its email could not be marked as read."
   },
   "invitationUnavailable": {
     "message": "The pending invitation is no longer available and was not changed."
