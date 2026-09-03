@@ -68,6 +68,8 @@
           "pending": { "type": "boolean" },
           "calendarId": { "type": "string", "optional": true },
           "itemId": { "type": "string", "optional": true },
+          "targetCalendarId": { "type": "string", "optional": true },
+          "targetCalendarName": { "type": "string", "optional": true },
           "cancellations": {
             "type": "array",
             "items": { "$ref": "CancellationCandidate" },
@@ -92,6 +94,16 @@
               { "type": "string" },
               { "type": "null" }
             ]
+          }
+        }
+      },
+      {
+        "id": "AcceptanceResult",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["accepted", "missing", "mismatch", "calendarError"]
           }
         }
       },
@@ -181,6 +193,23 @@
           "type": "array",
           "items": { "$ref": "PreviewReference" }
         }
+      },
+      {
+        "name": "acceptPreview",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "calendarId", "type": "string" },
+          { "name": "itemId", "type": "string" }
+        ],
+        "returns": { "$ref": "AcceptanceResult" }
+      },
+      {
+        "name": "playReminderSound",
+        "type": "function",
+        "async": true,
+        "parameters": [],
+        "returns": { "type": "boolean" }
       },
       {
         "name": "deleteCancellation",

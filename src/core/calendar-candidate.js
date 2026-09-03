@@ -44,11 +44,18 @@ export async function createCalendarCandidate(icalText) {
     components.find(component => !component.hasProperty("recurrence-id")) ?? components[0];
   const hasOrganizer = primary.hasProperty("organizer");
   const attendeeCount = primary.getAllProperties("attendee").length;
+  const startDate = dateTimeIso(primary.getFirstPropertyValue("dtstart"));
+  const endDate = dateTimeIso(primary.getFirstPropertyValue("dtend"));
 
   return {
     type: "calendar",
     method,
     icalText,
+    title: stringValue(primary.getFirstPropertyValue("summary")),
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+    allDay: Boolean(primary.getFirstPropertyValue("dtstart")?.isDate),
+    organizer: organizerLabel(primary.getFirstProperty("organizer")),
     actionable:
       (method === "CANCEL" && hasOrganizer) ||
       (method === "REQUEST" && hasOrganizer && attendeeCount > 0),
@@ -118,4 +125,21 @@ async function createFingerprint(method, components) {
 
 function stringValue(value) {
   return value == null ? "" : String(value);
+}
+
+function dateTimeIso(value) {
+  try {
+    return value?.toJSDate().toISOString() || "";
+  } catch {
+    return "";
+  }
+}
+
+function organizerLabel(property) {
+  if (!property) {
+    return "";
+  }
+  const commonName = stringValue(property.getParameter("cn"));
+  const email = stringValue(property.getFirstValue()).replace(/^mailto:/i, "");
+  return commonName || email;
 }

@@ -49,6 +49,15 @@ export async function processMessage(message, dependencies, options = {}) {
         itemId: outcome.itemId,
         icalText: candidate.icalText,
         preferredCalendarId: settings.preferredCalendarId || null,
+        targetCalendarId: outcome.targetCalendarId || null,
+        targetCalendarName: outcome.targetCalendarName || "",
+        title: candidate.title,
+        startDate: candidate.startDate,
+        endDate: candidate.endDate,
+        allDay: candidate.allDay,
+        organizer: candidate.organizer,
+        receivedAt: messageTimestamp(message),
+        sourceMessage: sourceMessage(message),
       });
     }
     if (outcome.status === "cancellationPending") {
@@ -58,6 +67,7 @@ export async function processMessage(message, dependencies, options = {}) {
           sourceId: candidate.fingerprint,
           icalText: candidate.icalText,
           receivedAt: messageTimestamp(message),
+          sourceMessage: sourceMessage(message),
         });
       }
     }
@@ -81,4 +91,12 @@ export async function processMessage(message, dependencies, options = {}) {
 function messageTimestamp(message) {
   const timestamp = new Date(message.date).getTime();
   return Number.isFinite(timestamp) ? timestamp : Date.now();
+}
+
+function sourceMessage(message) {
+  return {
+    messageId: message.id,
+    ...(message.headerMessageId ? { headerMessageId: message.headerMessageId } : {}),
+    ...(message.folder?.id ? { folderId: message.folder.id } : {}),
+  };
 }

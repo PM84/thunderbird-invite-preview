@@ -9,6 +9,18 @@ const data = {
     }),
     preview("source-2", "preview-calendar", "event-2", {
       icalText: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+      title: "Invitation to accept",
+      startDate: "2026-09-03T09:00:00.000Z",
+      endDate: "2026-09-03T10:00:00.000Z",
+      allDay: false,
+      organizer: "Organizer",
+      targetCalendarName: "Synthetic calendar",
+      receivedAt: 100,
+      sourceMessage: {
+        messageId: 20,
+        headerMessageId: "invitation@example.test",
+        folderId: "inbox",
+      },
     }),
     preview("source-3", "preview-calendar", "event-3"),
     preview("source-4", "preview-calendar", "event-4", {
@@ -33,6 +45,11 @@ const data = {
       lastSeenAt: 200,
       receivedCount: 1,
       lastError: null,
+      sourceMessage: {
+        messageId: 999,
+        headerMessageId: "cancellation@example.test",
+        folderId: "inbox",
+      },
     },
   },
 };
@@ -60,7 +77,10 @@ let resolveQuery;
 const createdWindows = [];
 const focusedWindows = [];
 const deletedCancellations = [];
+const acceptedInvitations = [];
+const updatedMessages = [];
 const sentRuntimeMessages = [];
+let reminderSoundCount = 0;
 let resolveCancellationReviewWindow = null;
 
 globalThis.messenger = {
@@ -72,7 +92,7 @@ globalThis.messenger = {
         ? [{
           contentType: "text/calendar",
           content: invitation({
-            method: "CANCEL",
+            method: messageId === 102 ? "REQUEST" : "CANCEL",
             uid: `cancelled-${messageId}@example.test`,
             sequence: "2",
           }),
@@ -82,7 +102,28 @@ globalThis.messenger = {
     async listAttachments() {
       return [];
     },
-    async query() {
+    async get(messageId) {
+      const headerMessageIds = {
+        20: "invitation@example.test",
+        100: "cancel-100@example.test",
+        101: "cancel-101@example.test",
+        102: "incoming-invitation@example.test",
+      };
+      return {
+        id: messageId,
+        headerMessageId: headerMessageIds[messageId] || "",
+      };
+    },
+    async update(messageId, properties) {
+      updatedMessages.push({ messageId, properties });
+    },
+    async query(queryInfo) {
+      if (queryInfo.headerMessageId) {
+        return {
+          messages: [{ id: 21, headerMessageId: queryInfo.headerMessageId }],
+          id: null,
+        };
+      }
       queryCount += 1;
       return new Promise(resolve => {
         resolveQuery = resolve;
@@ -122,6 +163,17 @@ globalThis.messenger = {
           }],
         };
       }
+      if (icalText.includes("METHOD:REQUEST")) {
+        const itemId = icalText.match(/UID:([^\r\n]+)/)?.[1];
+        return {
+          status: "staged",
+          pending: true,
+          calendarId: "preview-calendar",
+          itemId,
+          targetCalendarId: "target-calendar",
+          targetCalendarName: "Synthetic calendar",
+        };
+      }
       return { status: "noCalendar", pending: false };
     },
     async remove() {
@@ -134,6 +186,17 @@ globalThis.messenger = {
           ? "calendarError"
           : "deleted",
       };
+    },
+    async acceptPreview(calendarId, itemId) {
+      acceptedInvitations.push({ calendarId, itemId });
+      return {
+        status: itemId === "event-4" ? "calendarError" : "accepted",
+      };
+    },
+    async playReminderSound() {
+      reminderSoundCount += 1;
+      resolveCancellationReviewWindow?.();
+      return true;
     },
   },
   runtime: {
@@ -151,7 +214,6 @@ globalThis.messenger = {
     onRemoved: windowRemovedEvent,
     async create(details) {
       createdWindows.push(details);
-      resolveCancellationReviewWindow?.();
       return { id: 42 };
     },
     async update(windowId, details) {
@@ -185,13 +247,43 @@ assert.equal("icalText" in reviews[0], false);
 assert.equal("sourceId" in reviews[0], false);
 assert.equal("calendarId" in reviews[0], false);
 assert.equal("itemId" in reviews[0], false);
+assert.equal("sourceMessage" in reviews[0], false);
+
+const invitations = await messageEvent.fire({ type: "getInvitationReviews" });
+assert.equal(invitations.length, 3);
+const invitationReview = invitations.find(item => item.id === "source-2");
+assert.equal(invitationReview.title, "Invitation to accept");
+assert.equal(invitationReview.calendarName, "Synthetic calendar");
+assert.equal("calendarId" in invitationReview, false);
+assert.equal("itemId" in invitationReview, false);
+assert.equal("sourceMessage" in invitationReview, false);
 
 await messageEvent.fire({ type: "openCancellationReview" });
 await messageEvent.fire({ type: "openCancellationReview" });
 assert.equal(createdWindows.length, 1);
 assert.equal(createdWindows[0].type, "popup");
+assert.match(createdWindows[0].url, /\?section=cancellations$/);
 assert.equal("focused" in createdWindows[0], false);
 assert.equal(focusedWindows.length, 1);
+assert.equal(reminderSoundCount, 1, "focusing an existing review does not replay sound");
+
+const acceptance = await messageEvent.fire({
+  type: "acceptInvitation",
+  id: "source-2",
+});
+assert.deepEqual(acceptance, { status: "accepted", messageRead: true });
+assert.deepEqual(acceptedInvitations, [{
+  calendarId: "preview-calendar",
+  itemId: "event-2-restored",
+}]);
+assert.equal(
+  Object.values(data.pendingPreviews).some(item => item.sourceId === "source-2"),
+  false
+);
+assert.deepEqual(updatedMessages.at(-1), {
+  messageId: 20,
+  properties: { read: true },
+});
 
 const deletion = await messageEvent.fire({
   type: "deleteCancellation",
@@ -200,6 +292,10 @@ const deletion = await messageEvent.fire({
 assert.equal(deletion.status, "deleted");
 assert.equal(deletedCancellations.length, 1);
 assert.equal(data.pendingCancellations["review-1"], undefined);
+assert.deepEqual(updatedMessages.at(-1), {
+  messageId: 21,
+  properties: { read: true },
+});
 
 windowRemovedEvent.fire(42);
 const cancellationReviewWindow = new Promise(resolve => {
@@ -207,8 +303,20 @@ const cancellationReviewWindow = new Promise(resolve => {
 });
 newMailEvent.fire(null, {
   messages: [
-    { id: 100, junk: false, date: "2026-09-02T10:00:00.000Z" },
-    { id: 101, junk: false, date: "2026-09-02T11:00:00.000Z" },
+    {
+      id: 100,
+      headerMessageId: "cancel-100@example.test",
+      folder: { id: "inbox" },
+      junk: false,
+      date: "2026-09-02T10:00:00.000Z",
+    },
+    {
+      id: 101,
+      headerMessageId: "cancel-101@example.test",
+      folder: { id: "inbox" },
+      junk: false,
+      date: "2026-09-02T11:00:00.000Z",
+    },
   ],
   id: null,
 });
@@ -217,11 +325,16 @@ resolveCancellationReviewWindow = null;
 assert.equal(Object.keys(data.pendingCancellations).length, 2);
 assert.equal(createdWindows.length, 2, "one cancellation batch opens one review window");
 assert.deepEqual(sentRuntimeMessages.at(-1), {
-  type: "cancellationReviewsChanged",
+  type: "reviewItemsChanged",
 });
+assert.equal(reminderSoundCount, 2);
 
 const deleteAllResult = await messageEvent.fire({ type: "deleteAllCancellations" });
-assert.deepEqual(deleteAllResult, { deletedCount: 1, failedCount: 1 });
+assert.deepEqual(deleteAllResult, {
+  deletedCount: 1,
+  failedCount: 1,
+  messageReadFailedCount: 0,
+});
 const remainingReviews = await messageEvent.fire({ type: "getCancellationReviews" });
 assert.equal(remainingReviews.length, 1);
 assert.equal(remainingReviews[0].lastError, "calendarError");
@@ -231,6 +344,28 @@ await messageEvent.fire({
   id: remainingReviews[0].id,
 });
 assert.deepEqual(await messageEvent.fire({ type: "getCancellationReviews" }), []);
+
+windowRemovedEvent.fire(42);
+const invitationReviewWindow = new Promise(resolve => {
+  resolveCancellationReviewWindow = resolve;
+});
+newMailEvent.fire(null, {
+  messages: [
+    {
+      id: 102,
+      headerMessageId: "incoming-invitation@example.test",
+      folder: { id: "inbox" },
+      junk: false,
+      date: "2026-09-02T13:00:00.000Z",
+    },
+  ],
+  id: null,
+});
+await invitationReviewWindow;
+resolveCancellationReviewWindow = null;
+assert.equal(createdWindows.length, 3);
+assert.match(createdWindows.at(-1).url, /\?section=invitations$/);
+assert.equal(reminderSoundCount, 3);
 
 transferPendingEvent.fire({
   sourceId: "source-1",
@@ -250,6 +385,22 @@ assert.equal(
   Object.values(data.pendingPreviews).some(item => item.sourceId === "source-1"),
   false
 );
+
+const acceptAllResult = await messageEvent.fire({ type: "acceptAllInvitations" });
+assert.deepEqual(acceptAllResult, {
+  acceptedCount: 1,
+  failedCount: 1,
+  messageReadFailedCount: 0,
+});
+assert.deepEqual(
+  Object.values(data.pendingPreviews).map(item => item.itemId),
+  ["event-4"],
+  "failed invitations remain available after bulk acceptance"
+);
+assert.deepEqual(updatedMessages.at(-1), {
+  messageId: 102,
+  properties: { read: true },
+});
 
 const firstScan = messageEvent.fire({ type: "scanHistory" });
 const secondScan = messageEvent.fire({ type: "scanHistory" });

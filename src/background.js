@@ -5,12 +5,14 @@ import {
 } from "./application/history-scan.js";
 import { removeTrackedPreviews } from "./application/remove-previews.js";
 import { summarizeOutcomes } from "./application/summarize-outcomes.js";
+import { createCalendarCandidate } from "./core/calendar-candidate.js";
 import { IcsExtractor } from "./extractors/ics-extractor.js";
 import { ExtensionStateStore } from "./infrastructure/extension-state-store.js";
 
 const stateStore = new ExtensionStateStore(messenger.storage.local);
 const extractors = [new IcsExtractor(messenger.messages)];
 const processingMessages = new Set();
+const acceptingInvitations = new Set();
 const deletingCancellations = new Set();
 let historyScanPromise = null;
 let restorePromise = null;
@@ -64,8 +66,16 @@ messenger.runtime.onMessage.addListener(request => {
       return clearPreviews();
     case "getCancellationReviews":
       return getCancellationReviews();
+    case "getInvitationReviews":
+      return getInvitationReviews();
+    case "openReview":
+      return openReview(request.section);
     case "openCancellationReview":
-      return openCancellationReview();
+      return openReview("cancellations");
+    case "acceptInvitation":
+      return acceptInvitation(request.id);
+    case "acceptAllInvitations":
+      return acceptAllInvitations();
     case "deleteCancellation":
       return deleteCancellation(request.id);
     case "deleteAllCancellations":
@@ -80,6 +90,7 @@ messenger.runtime.onMessage.addListener(request => {
 async function processMessageList(initialList, options = {}) {
   let messageList = initialList;
   const outcomes = [];
+  let invitationDetected = false;
   let cancellationDetected = false;
 
   while (messageList) {
@@ -92,6 +103,9 @@ async function processMessageList(initialList, options = {}) {
       if (!options.filter || options.filter(message)) {
         const messageOutcomes = await processMessageSafely(message, options);
         outcomes.push(...messageOutcomes);
+        invitationDetected ||= messageOutcomes.some(
+          outcome => outcome.status === "staged" || outcome.status === "updated"
+        );
         cancellationDetected ||= messageOutcomes.some(
           outcome => outcome.status === "cancellationPending"
         );
@@ -108,12 +122,10 @@ async function processMessageList(initialList, options = {}) {
       : null;
   }
 
-  if (cancellationDetected) {
-    await messenger.runtime.sendMessage({
-      type: "cancellationReviewsChanged",
-    }).catch(() => {});
-    await openCancellationReview().catch(error => {
-      console.error("Invite Preview could not open cancellation review", error);
+  if (invitationDetected || cancellationDetected) {
+    await notifyReviewItemsChanged();
+    await openReview(cancellationDetected ? "cancellations" : "invitations").catch(error => {
+      console.error("Invite Preview could not open the review window", error);
     });
   }
 
@@ -232,28 +244,42 @@ async function clearPreviews() {
 async function initializeState() {
   await restorePreviews();
   await reconcilePreviews();
-  if ((await stateStore.listCancellations()).length > 0) {
-    await openCancellationReview();
+  const [previews, cancellations] = await Promise.all([
+    stateStore.listPreviews(),
+    stateStore.listCancellations(),
+  ]);
+  if (previews.length > 0 || cancellations.length > 0) {
+    await openReview(previews.length > 0 ? "invitations" : "cancellations");
   }
+}
+
+async function getInvitationReviews() {
+  const previews = await stateStore.listPreviews();
+  return Promise.all(previews.map(publicInvitation));
 }
 
 async function getCancellationReviews() {
   return (await stateStore.listCancellations()).map(publicCancellation);
 }
 
-function openCancellationReview() {
+function openReview(section = "invitations") {
+  section = section === "cancellations" ? "cancellations" : "invitations";
   if (!cancellationWindowPromise) {
-    cancellationWindowPromise = openCancellationReviewNow().finally(() => {
+    cancellationWindowPromise = openReviewNow(section).finally(() => {
       cancellationWindowPromise = null;
     });
   }
   return cancellationWindowPromise;
 }
 
-async function openCancellationReviewNow() {
+async function openReviewNow(section) {
   if (cancellationWindowId != null) {
     try {
       await messenger.windows.update(cancellationWindowId, { focused: true });
+      await messenger.runtime.sendMessage({
+        type: "showReviewSection",
+        section,
+      }).catch(() => {});
       return { windowId: cancellationWindowId };
     } catch {
       cancellationWindowId = null;
@@ -261,13 +287,69 @@ async function openCancellationReviewNow() {
   }
 
   const reviewWindow = await messenger.windows.create({
-    url: messenger.runtime.getURL("cancellations/cancellations.html"),
+    url: `${messenger.runtime.getURL("cancellations/cancellations.html")}?section=${section}`,
     type: "popup",
     width: 720,
     height: 640,
   });
   cancellationWindowId = reviewWindow.id;
+  await messenger.invitationPreview.playReminderSound().catch(() => false);
   return { windowId: cancellationWindowId };
+}
+
+async function acceptInvitation(id) {
+  if (acceptingInvitations.has(id)) {
+    return { status: "busy", messageRead: false };
+  }
+  acceptingInvitations.add(id);
+  try {
+    return await acceptInvitationNow(id);
+  } finally {
+    acceptingInvitations.delete(id);
+  }
+}
+
+async function acceptInvitationNow(id) {
+  const preview = (await stateStore.listPreviews()).find(
+    item => item.sourceId === id
+  );
+  if (!preview) {
+    return { status: "missing", messageRead: false };
+  }
+  const outcome = await messenger.invitationPreview.acceptPreview(
+    preview.calendarId,
+    preview.itemId
+  );
+  if (outcome.status !== "accepted") {
+    if (outcome.status === "missing") {
+      await stateStore.resolveSource(preview.sourceId);
+      await notifyReviewItemsChanged();
+    }
+    return { ...outcome, messageRead: false };
+  }
+  await stateStore.resolveSource(preview.sourceId);
+  const messageRead = await markSourceMessageRead(preview.sourceMessage);
+  await notifyReviewItemsChanged();
+  return { ...outcome, messageRead };
+}
+
+async function acceptAllInvitations() {
+  const previews = await stateStore.listPreviews();
+  let acceptedCount = 0;
+  let failedCount = 0;
+  let messageReadFailedCount = 0;
+  for (const preview of previews) {
+    const outcome = await acceptInvitation(preview.sourceId);
+    if (outcome.status === "accepted") {
+      acceptedCount += 1;
+      if (!outcome.messageRead) {
+        messageReadFailedCount += 1;
+      }
+    } else {
+      failedCount += 1;
+    }
+  }
+  return { acceptedCount, failedCount, messageReadFailedCount };
 }
 
 async function deleteCancellation(id) {
@@ -291,7 +373,14 @@ async function deleteCancellation(id) {
     } else {
       await stateStore.markCancellationError(id, outcome.status);
     }
-    return outcome;
+    const messageRead =
+      outcome.status === "deleted" || outcome.status === "missing"
+        ? await markSourceMessageRead(cancellation.sourceMessage)
+        : false;
+    if (outcome.status === "deleted" || outcome.status === "missing") {
+      await notifyReviewItemsChanged();
+    }
+    return { ...outcome, messageRead };
   } finally {
     deletingCancellations.delete(id);
   }
@@ -301,20 +390,46 @@ async function deleteAllCancellations() {
   const cancellations = await stateStore.listCancellations();
   let deletedCount = 0;
   let failedCount = 0;
+  let messageReadFailedCount = 0;
   for (const cancellation of cancellations) {
     const outcome = await deleteCancellation(cancellation.id);
     if (outcome.status === "deleted" || outcome.status === "missing") {
       deletedCount += 1;
+      if (!outcome.messageRead) {
+        messageReadFailedCount += 1;
+      }
     } else {
       failedCount += 1;
     }
   }
-  return { deletedCount, failedCount };
+  return { deletedCount, failedCount, messageReadFailedCount };
 }
 
 async function dismissCancellation(id) {
   await stateStore.removeCancellation(id);
+  await notifyReviewItemsChanged();
   return { status: "dismissed" };
+}
+
+async function publicInvitation(preview) {
+  let details = preview;
+  if ((!preview.title || !preview.startDate) && preview.icalText) {
+    try {
+      details = { ...await createCalendarCandidate(preview.icalText), ...preview };
+    } catch {
+      details = preview;
+    }
+  }
+  return {
+    id: preview.sourceId,
+    title: details.title || "",
+    startDate: details.startDate || "",
+    endDate: details.endDate || "",
+    allDay: Boolean(details.allDay),
+    organizer: details.organizer || "",
+    calendarName: preview.targetCalendarName || "",
+    receivedAt: preview.receivedAt || 0,
+  };
 }
 
 function publicCancellation(cancellation) {
@@ -324,7 +439,66 @@ function publicCancellation(cancellation) {
   delete publicFields.calendarId;
   delete publicFields.itemId;
   delete publicFields.recurrenceId;
+  delete publicFields.sourceMessage;
   return publicFields;
+}
+
+async function markSourceMessageRead(sourceMessage) {
+  if (!sourceMessage) {
+    return false;
+  }
+  if (sourceMessage.messageId != null && sourceMessage.headerMessageId) {
+    try {
+      const message = await messenger.messages.get(sourceMessage.messageId);
+      if (
+        message.headerMessageId === sourceMessage.headerMessageId
+      ) {
+        await messenger.messages.update(sourceMessage.messageId, { read: true });
+        return true;
+      }
+    } catch {
+      // Continue with the broader stable Message-ID lookup.
+    }
+  }
+  if (!sourceMessage.headerMessageId) {
+    return false;
+  }
+  const queries = [
+    ...(sourceMessage.folderId ? [{
+      folderId: sourceMessage.folderId,
+      headerMessageId: sourceMessage.headerMessageId,
+    }] : []),
+    { headerMessageId: sourceMessage.headerMessageId },
+  ];
+  for (const query of queries) {
+    try {
+      const message = await findFirstMessage(query);
+      if (message) {
+        await messenger.messages.update(message.id, { read: true });
+        return true;
+      }
+    } catch {
+      // The message may have moved again; try the next lookup scope.
+    }
+  }
+  return false;
+}
+
+async function findFirstMessage(query) {
+  let messageList = await messenger.messages.query(query);
+  while (messageList) {
+    if (messageList.messages[0]) {
+      return messageList.messages[0];
+    }
+    messageList = messageList.id
+      ? await messenger.messages.continueList(messageList.id)
+      : null;
+  }
+  return null;
+}
+
+function notifyReviewItemsChanged() {
+  return messenger.runtime.sendMessage({ type: "reviewItemsChanged" }).catch(() => {});
 }
 
 function restorePreviews() {

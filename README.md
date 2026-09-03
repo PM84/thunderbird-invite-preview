@@ -4,16 +4,21 @@
 
 Invite Preview shows actionable iTIP invitations in Thunderbird's calendar
 before the user responds. Pending invitations remain transparent and do not
-block availability. Thunderbird's native invitation controls handle accept,
-tentative, and decline responses.
+block availability. A shared review window lists pending invitations and
+cancellations; Thunderbird's native invitation controls remain available.
 
 ## Features
 
 - Detects inline and attached `VEVENT` invitations using `METHOD:REQUEST`.
 - Applies `METHOD:CANCEL` messages to pending previews created by the add-on.
-- Opens a cancellation review window for accepted events. Users can inspect,
-  dismiss, remove individually, or confirm removal of all listed events; real
-  calendar events are never removed automatically.
+- Opens a shared invitation review window for new actionable mail and plays the
+	configured Thunderbird calendar reminder sound.
+- Lists pending invitations and accepted-event cancellations on separate tabs.
+	Invitations can be accepted individually or in a confirmed batch with normal
+	iTIP replies. Cancellations can be dismissed, removed individually, or removed
+	in a confirmed batch; real calendar events are never removed automatically.
+- Marks the corresponding email as read after an invitation is accepted or a
+	cancelled event is removed from its calendar.
 - Scans new non-junk mail automatically.
 - Scans existing incoming mail on demand over a configurable period of 1 to
 	3650 days, with a default of 60 days.
@@ -33,7 +38,7 @@ are outside the supported scope.
 
 ## Compatibility
 
-Version `1.1.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
+Version `1.2.0` supports Thunderbird `154.*`. The add-on uses a narrowly scoped
 Experiment API because Thunderbird does not provide a stable MailExtension
 calendar API. Each new Thunderbird major version requires the manual test plan
 before the manifest compatibility range is expanded.
@@ -52,7 +57,7 @@ npm audit
 ```
 
 `npm run check` runs ESLint, all unit tests, release-structure validation, and
-creates `dist/invite-preview-1.1.0.xpi`. The build copies the pinned `ical.js`
+creates `dist/invite-preview-1.2.0.xpi`. The build copies the pinned `ical.js`
 release byte-for-byte and packages readable source without bundling,
 transpilation, or minification.
 
@@ -64,6 +69,8 @@ Debug Add-ons > Load Temporary Add-on** in Thunderbird, and select
 
 - `messagesRead`: reads calendar MIME parts and ICS attachments from eligible
 	messages.
+- `messagesUpdate`: marks the source invitation or cancellation email as read
+  after the user successfully accepts the corresponding review action.
 - `accountsRead`: receives new-mail events and resolves invited identities.
 - `storage`: stores settings, deduplication fingerprints, and pending preview
 	recovery data locally.

@@ -5,6 +5,11 @@ import vm from "node:vm";
 const loggedErrors = [];
 const resolutions = [];
 const pendingTransfers = [];
+const sentReplies = [];
+const playedSounds = [];
+let alarmSoundsEnabled = true;
+let alarmSoundType = 0;
+let alarmSoundURL = "";
 const attendee = {
   id: "mailto:user@example.test",
   participationStatus: "ACCEPTED",
@@ -133,6 +138,29 @@ class EventManager {
   }
 }
 
+class CalItipMessageSender {
+  constructor(originalItem, invitedAttendee) {
+    this.originalItem = originalItem;
+    this.invitedAttendee = invitedAttendee;
+  }
+
+  buildOutgoingMessages(operation, item, response) {
+    this.operation = operation;
+    this.item = item;
+    this.response = response;
+  }
+
+  send(transport) {
+    sentReplies.push({
+      operation: this.operation,
+      participationStatus: this.invitedAttendee.participationStatus,
+      responseMode: this.response.responseMode,
+      transport,
+    });
+    return true;
+  }
+}
+
 const cal = {
   manager: {
     getCalendars() {
@@ -197,6 +225,18 @@ const sandbox = {
       if (path.endsWith("calUtils.sys.mjs")) {
         return { cal };
       }
+      if (path.endsWith("CalItipMessageSender.sys.mjs")) {
+        return { CalItipMessageSender };
+      }
+      if (path.endsWith("NotificationSounds.sys.mjs")) {
+        return {
+          NotificationSounds: {
+            playCustomSound(url) {
+              playedSounds.push(url);
+            },
+          },
+        };
+      }
       return { MailServices: { accounts: { allIdentities: [] } } };
     },
   },
@@ -208,11 +248,17 @@ const sandbox = {
     },
   },
   Ci: {
-    calIItipItem: { NONE: 0 },
+    calIItipItem: { NONE: 0, AUTO: 1 },
+    calIOperationListener: { ADD: 2 },
   },
   Services: {
     io: { newURI(value) { return value; } },
     obs: { notifyObservers() {} },
+    prefs: {
+      getBoolPref() { return alarmSoundsEnabled; },
+      getIntPref() { return alarmSoundType; },
+      getStringPref() { return alarmSoundURL; },
+    },
   },
   console: {
     ...console,
@@ -260,6 +306,8 @@ assert.equal(
   previewCalendar.currentItem.getProperty("X-INVITE-PREVIEW-TARGET-CALENDAR"),
   calendar.id
 );
+assert.equal(result.targetCalendarId, calendar.id);
+assert.equal(result.targetCalendarName, calendar.name);
 assert.deepEqual(JSON.parse(JSON.stringify(await api.listCalendars())), [
   { id: calendar.id, name: calendar.name, isDefault: true },
 ]);
@@ -298,6 +346,49 @@ assert.deepEqual(JSON.parse(JSON.stringify(resolutions)), [
 ]);
 
 transferredItem = null;
+receivedItem = createItem("event-modal-accept");
+const modalResult = await api.stage("BEGIN:VCALENDAR", {
+  sourceId: "source-modal-accept",
+  preferredCalendarId: null,
+});
+assert.equal(modalResult.status, "staged");
+assert.equal(
+  (await api.acceptPreview(calendar.id, modalResult.itemId)).status,
+  "mismatch",
+  "only the dedicated preview calendar can be resolved"
+);
+attendee.participationStatus = "";
+assert.equal(
+  (await api.acceptPreview(modalResult.calendarId, modalResult.itemId)).status,
+  "mismatch",
+  "only an explicit NEEDS-ACTION preview can be accepted"
+);
+attendee.participationStatus = "NEEDS-ACTION";
+const modalAcceptance = await api.acceptPreview(
+  modalResult.calendarId,
+  modalResult.itemId
+);
+assert.equal(modalAcceptance.status, "accepted");
+assert.equal(transferredItem.id, "event-modal-accept");
+assert.equal(attendee.participationStatus, "ACCEPTED");
+assert.deepEqual(sentReplies.at(-1), {
+  operation: 2,
+  participationStatus: "ACCEPTED",
+  responseMode: 1,
+  transport: null,
+});
+
+assert.equal(await api.playReminderSound(), true);
+assert.deepEqual(playedSounds, ["chrome://calendar/content/sound.wav"]);
+alarmSoundType = 1;
+alarmSoundURL = "file:///synthetic/reminder.wav";
+assert.equal(await api.playReminderSound(), true);
+assert.equal(playedSounds.at(-1), alarmSoundURL);
+alarmSoundsEnabled = false;
+assert.equal(await api.playReminderSound(), false);
+assert.equal(playedSounds.length, 2);
+
+transferredItem = null;
 receivedItem = createItem("event-2");
 const retryResult = await api.stage("BEGIN:VCALENDAR", {
   sourceId: "source-2",
@@ -331,6 +422,12 @@ assert.deepEqual(JSON.parse(JSON.stringify(pendingTransfers)), [
     participationStatus: "ACCEPTED",
   },
 ]);
+assert.equal(
+  (await api.acceptPreview(previewCalendar.id, "event-2")).status,
+  "calendarError",
+  "an accepted failed transfer remains retryable from the review window"
+);
+assert.equal(sentReplies.length, 1, "retrying a transfer never sends a second RSVP");
 
 calendar.addItem = async item => {
   item.calendar = calendar;
@@ -392,7 +489,7 @@ const cancellationResult = await api.stage("BEGIN:VCALENDAR", {
 });
 assert.equal(cancellationResult.status, "cancelled");
 assert.equal(previewCalendar.currentItem, null);
-assert.equal(cleanupCount, 6, "every staging outcome cleans up its iTIP item");
+assert.equal(cleanupCount, 7, "every staging outcome cleans up its iTIP item");
 
 userCalendars.push(inheritedIdentityCalendar, calendar, secondaryCalendar);
 itipItem.receivedMethod = "REQUEST";

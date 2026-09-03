@@ -20,6 +20,20 @@
   "reviewCancellations": {
     "message": "Review cancellations"
   },
+  "manualScan": {
+    "message": "Check mailbox now"
+  },
+  "openReviewWindow": {
+    "message": "Review invitations and cancellations"
+  },
+  "manualScanComplete": {
+    "message": "Scanned $DAYS$ days: $INVITATIONS$ invitation(s) and $CANCELLATIONS$ cancellation(s) are ready for review.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "invitations": { "content": "$2" },
+      "cancellations": { "content": "$3" }
+    }
+  },
   "cancellationReviewOpened": {
     "message": "Opened $COUNT$ cancellation(s) for review.",
     "placeholders": {
@@ -132,6 +146,30 @@
   "cancellationReviewEyebrow": {
     "message": "Calendar changes"
   },
+  "reviewWindowEyebrow": {
+    "message": "Calendar inbox"
+  },
+  "reviewWindowTitle": {
+    "message": "Invitation review"
+  },
+  "reviewCategories": {
+    "message": "Review categories"
+  },
+  "reviewNavigation": {
+    "message": "Item navigation"
+  },
+  "invitationReviewTab": {
+    "message": "Invitations"
+  },
+  "cancellationReviewTab": {
+    "message": "Cancellations"
+  },
+  "invitationReviewSummary": {
+    "message": "Invitations awaiting your response"
+  },
+  "noInvitationReviews": {
+    "message": "There are no invitations awaiting a response."
+  },
   "cancellationReviewTitle": {
     "message": "Cancelled invitations"
   },
@@ -142,7 +180,7 @@
     "message": "There are no cancellations to review."
   },
   "deleteAllCancellations": {
-    "message": "Remove all from calendars"
+    "message": "Confirm all cancellations"
   },
   "confirmDeleteAllCancellations": {
     "message": "Remove all $COUNT$ cancelled events from their calendars?",
@@ -152,6 +190,79 @@
   },
   "cancelledInvitation": {
     "message": "Invitation cancelled"
+  },
+  "invitationAwaitingResponse": {
+    "message": "Response requested"
+  },
+  "reviewCalendar": {
+    "message": "Calendar"
+  },
+  "reviewDate": {
+    "message": "Date"
+  },
+  "reviewOrganizer": {
+    "message": "Organizer"
+  },
+  "invitationReceived": {
+    "message": "Invitation received"
+  },
+  "acceptInvitation": {
+    "message": "Accept invitation"
+  },
+  "acceptAllInvitations": {
+    "message": "Accept all invitations"
+  },
+  "confirmAcceptAllInvitations": {
+    "message": "Accept all $COUNT$ pending invitations and send responses to their organizers?",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "invitationsAccepted": {
+    "message": "Accepted $COUNT$ invitation(s) and marked their emails as read.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "invitationsAcceptPartial": {
+    "message": "Accepted $ACCEPTED$ invitation(s); $FAILED$ could not be accepted.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "invitationsAcceptedMailUnread": {
+    "message": "Accepted $ACCEPTED$ invitation(s); $UNREAD$ email(s) could not be marked as read.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "unread": { "content": "$2" }
+    }
+  },
+  "invitationsAcceptPartialMailUnread": {
+    "message": "Accepted $ACCEPTED$ invitation(s); $FAILED$ failed and $UNREAD$ email(s) could not be marked as read.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "failed": { "content": "$2" },
+      "unread": { "content": "$3" }
+    }
+  },
+  "confirmAcceptInvitation": {
+    "message": "Accept “$TITLE$” and send a response to the organizer?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "invitationAccepted": {
+    "message": "The invitation was accepted and its email was marked as read."
+  },
+  "invitationAcceptedMailUnread": {
+    "message": "The invitation was accepted, but its email could not be marked as read."
+  },
+  "invitationUnavailable": {
+    "message": "The pending invitation is no longer available and was not changed."
+  },
+  "invitationAcceptFailed": {
+    "message": "The invitation could not be accepted. It remains available for another attempt."
   },
   "cancellationCalendar": {
     "message": "Calendar"
@@ -166,7 +277,7 @@
     "message": "Cancellation received"
   },
   "deleteCancellation": {
-    "message": "Remove from calendar"
+    "message": "Confirm cancellation and remove event"
   },
   "dismissCancellation": {
     "message": "Keep event and dismiss"
@@ -178,12 +289,22 @@
     }
   },
   "cancellationDeleted": {
-    "message": "The event was removed from its calendar."
+    "message": "The event was removed and its cancellation email was marked as read."
+  },
+  "cancellationDeletedMailUnread": {
+    "message": "The event was removed, but its cancellation email could not be marked as read."
   },
   "cancellationsDeleted": {
-    "message": "Removed $COUNT$ cancelled event(s).",
+    "message": "Removed $COUNT$ cancelled event(s) and marked their emails as read.",
     "placeholders": {
       "count": { "content": "$1" }
+    }
+  },
+  "cancellationsDeletedMailUnread": {
+    "message": "Removed $DELETED$ event(s); $UNREAD$ email(s) could not be marked as read.",
+    "placeholders": {
+      "deleted": { "content": "$1" },
+      "unread": { "content": "$2" }
     }
   },
   "cancellationsDeletePartial": {
@@ -212,6 +333,13 @@
       "total": { "content": "$2" }
     }
   },
+  "reviewPosition": {
+    "message": "$CURRENT$ of $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "untitledEvent": {
     "message": "Untitled event"
   },
@@ -223,6 +351,15 @@
   },
   "backToCancellationList": {
     "message": "Back to list"
+  },
+  "backToReviewList": {
+    "message": "Back to list"
+  },
+  "previousReview": {
+    "message": "Previous item"
+  },
+  "nextReview": {
+    "message": "Next item"
   },
   "previousCancellation": {
     "message": "Previous cancellation"

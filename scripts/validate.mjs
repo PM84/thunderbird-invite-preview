@@ -53,6 +53,11 @@ assert(
   "options_ui.browser_style is deprecated in Manifest V3"
 );
 assert(
+  manifest.permissions?.includes("messagesRead") &&
+    manifest.permissions?.includes("messagesUpdate"),
+  "Reading and marking handled invitation messages requires both message permissions"
+);
+assert(
   packageJson.engines?.node === ">=22.13.0",
   "Node.js 22.13 or newer is required"
 );

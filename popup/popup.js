@@ -4,39 +4,14 @@ const activity = document.querySelector("#activity");
 const pendingCount = document.querySelector("#pending-count");
 const cancellationCount = document.querySelector("#cancellation-count");
 const result = document.querySelector("#result");
-const scanButton = document.querySelector("#scan");
-const historyButton = document.querySelector("#scan-history");
+const manualScanButton = document.querySelector("#manual-scan");
 const clearButton = document.querySelector("#clear");
-const reviewCancellationsButton = document.querySelector("#review-cancellations");
+const openReviewButton = document.querySelector("#open-review");
 const settingsButton = document.querySelector("#settings");
+let currentState = null;
 
-scanButton.addEventListener("click", async () => {
-  await runBusy(scanButton, async () => {
-    const summary = await messenger.runtime.sendMessage({ type: "scanDisplayed" });
-    if (summary.calendarErrorCount > 0) {
-      result.textContent = message("calendarUnresponsive");
-    } else if (summary.error) {
-      result.textContent = message("operationFailed");
-    } else if (summary.noCalendarCount > 0) {
-      result.textContent = summary.stagedCount > 0
-        ? message("scanNoCalendarPartial", [
-          summary.stagedCount,
-          summary.noCalendarCount,
-        ])
-        : message("calendarMissing");
-    } else if (summary.cancellationCount > 0) {
-      result.textContent = message("cancellationReviewOpened", summary.cancellationCount);
-    } else if (summary.stagedCount > 0) {
-      result.textContent = message("scanComplete", summary.stagedCount);
-    } else {
-      result.textContent = message("nothingFound");
-    }
-  });
-  await refreshState();
-});
-
-historyButton.addEventListener("click", async () => {
-  await runBusy(historyButton, async () => {
+manualScanButton.addEventListener("click", async () => {
+  await runBusy(manualScanButton, async () => {
     const summary = await messenger.runtime.sendMessage({ type: "scanHistory" });
     if (summary.calendarErrorCount > 0) {
       result.textContent = summary.stagedCount > 0
@@ -57,15 +32,10 @@ historyButton.addEventListener("click", async () => {
           summary.noCalendarCount,
         ])
         : message("calendarMissing");
-    } else if (summary.cancellationCount > 0) {
+    } else if (summary.cancellationCount > 0 || summary.stagedCount > 0) {
       result.textContent = message(
-        "historyCancellationReviewOpened",
-        [summary.historyDays, summary.cancellationCount]
-      );
-    } else if (summary.stagedCount > 0) {
-      result.textContent = message(
-        "historyScanComplete",
-        [summary.historyDays, summary.stagedCount]
+        "manualScanComplete",
+        [summary.historyDays, summary.stagedCount, summary.cancellationCount]
       );
     } else {
       result.textContent = message("historyScanNothing", summary.historyDays);
@@ -88,20 +58,22 @@ clearButton.addEventListener("click", async () => {
 });
 
 settingsButton.addEventListener("click", () => messenger.runtime.openOptionsPage());
-reviewCancellationsButton.addEventListener("click", async () => {
-  await messenger.runtime.sendMessage({ type: "openCancellationReview" });
+openReviewButton.addEventListener("click", async () => {
+  await messenger.runtime.sendMessage({
+    type: "openReview",
+    section: currentState?.pendingCount > 0 ? "invitations" : "cancellations",
+  });
   window.close();
 });
 
 await refreshState();
 
 async function refreshState() {
-  const state = await messenger.runtime.sendMessage({ type: "getState" });
-  pendingCount.textContent = String(state.pendingCount);
-  cancellationCount.textContent = String(state.cancellationCount);
-  activity.textContent = message(state.enabled ? "active" : "inactive");
-  clearButton.disabled = state.pendingCount === 0;
-  reviewCancellationsButton.disabled = state.cancellationCount === 0;
+  currentState = await messenger.runtime.sendMessage({ type: "getState" });
+  pendingCount.textContent = String(currentState.pendingCount);
+  cancellationCount.textContent = String(currentState.cancellationCount);
+  activity.textContent = message(currentState.enabled ? "active" : "inactive");
+  clearButton.disabled = currentState.pendingCount === 0;
 }
 
 async function runBusy(button, operation) {

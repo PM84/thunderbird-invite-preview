@@ -20,6 +20,20 @@
   "reviewCancellations": {
     "message": "Absagen prüfen"
   },
+  "manualScan": {
+    "message": "Postfach jetzt prüfen"
+  },
+  "openReviewWindow": {
+    "message": "Einladungen und Absagen bearbeiten"
+  },
+  "manualScanComplete": {
+    "message": "$DAYS$ Tage geprüft: $INVITATIONS$ Einladung(en) und $CANCELLATIONS$ Absage(n) stehen zur Prüfung bereit.",
+    "placeholders": {
+      "days": { "content": "$1" },
+      "invitations": { "content": "$2" },
+      "cancellations": { "content": "$3" }
+    }
+  },
   "cancellationReviewOpened": {
     "message": "$COUNT$ Absage(n) zur Prüfung geöffnet.",
     "placeholders": {
@@ -132,6 +146,30 @@
   "cancellationReviewEyebrow": {
     "message": "Kalenderänderungen"
   },
+  "reviewWindowEyebrow": {
+    "message": "Kalender-Posteingang"
+  },
+  "reviewWindowTitle": {
+    "message": "Einladungen prüfen"
+  },
+  "reviewCategories": {
+    "message": "Prüfkategorien"
+  },
+  "reviewNavigation": {
+    "message": "Navigation durch Einträge"
+  },
+  "invitationReviewTab": {
+    "message": "Einladungen"
+  },
+  "cancellationReviewTab": {
+    "message": "Absagen"
+  },
+  "invitationReviewSummary": {
+    "message": "Einladungen, die auf Ihre Antwort warten"
+  },
+  "noInvitationReviews": {
+    "message": "Es warten keine Einladungen auf eine Antwort."
+  },
   "cancellationReviewTitle": {
     "message": "Abgesagte Einladungen"
   },
@@ -142,7 +180,7 @@
     "message": "Es sind keine Absagen zu prüfen."
   },
   "deleteAllCancellations": {
-    "message": "Alle aus Kalendern entfernen"
+    "message": "Alle Absagen bestätigen"
   },
   "confirmDeleteAllCancellations": {
     "message": "Alle $COUNT$ abgesagten Termine aus ihren Kalendern entfernen?",
@@ -152,6 +190,79 @@
   },
   "cancelledInvitation": {
     "message": "Einladung abgesagt"
+  },
+  "invitationAwaitingResponse": {
+    "message": "Antwort erforderlich"
+  },
+  "reviewCalendar": {
+    "message": "Kalender"
+  },
+  "reviewDate": {
+    "message": "Datum"
+  },
+  "reviewOrganizer": {
+    "message": "Organisator"
+  },
+  "invitationReceived": {
+    "message": "Einladung erhalten"
+  },
+  "acceptInvitation": {
+    "message": "Einladung annehmen"
+  },
+  "acceptAllInvitations": {
+    "message": "Alle Einladungen akzeptieren"
+  },
+  "confirmAcceptAllInvitations": {
+    "message": "Alle $COUNT$ offenen Einladungen annehmen und den Organisatoren antworten?",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "invitationsAccepted": {
+    "message": "$COUNT$ Einladung(en) angenommen und ihre E-Mails als gelesen markiert.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "invitationsAcceptPartial": {
+    "message": "$ACCEPTED$ Einladung(en) angenommen; $FAILED$ konnten nicht angenommen werden.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "failed": { "content": "$2" }
+    }
+  },
+  "invitationsAcceptedMailUnread": {
+    "message": "$ACCEPTED$ Einladung(en) angenommen; $UNREAD$ E-Mail(s) konnten nicht als gelesen markiert werden.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "unread": { "content": "$2" }
+    }
+  },
+  "invitationsAcceptPartialMailUnread": {
+    "message": "$ACCEPTED$ Einladung(en) angenommen; $FAILED$ fehlgeschlagen und $UNREAD$ E-Mail(s) konnten nicht als gelesen markiert werden.",
+    "placeholders": {
+      "accepted": { "content": "$1" },
+      "failed": { "content": "$2" },
+      "unread": { "content": "$3" }
+    }
+  },
+  "confirmAcceptInvitation": {
+    "message": "„$TITLE$“ annehmen und dem Organisator antworten?",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "invitationAccepted": {
+    "message": "Die Einladung wurde angenommen und die zugehörige E-Mail als gelesen markiert."
+  },
+  "invitationAcceptedMailUnread": {
+    "message": "Die Einladung wurde angenommen, aber die zugehörige E-Mail konnte nicht als gelesen markiert werden."
+  },
+  "invitationUnavailable": {
+    "message": "Die offene Einladung ist nicht mehr verfügbar und wurde nicht geändert."
+  },
+  "invitationAcceptFailed": {
+    "message": "Die Einladung konnte nicht angenommen werden. Ein weiterer Versuch ist möglich."
   },
   "cancellationCalendar": {
     "message": "Kalender"
@@ -166,7 +277,7 @@
     "message": "Absage erhalten"
   },
   "deleteCancellation": {
-    "message": "Aus Kalender entfernen"
+    "message": "Absage bestätigen und Termin entfernen"
   },
   "dismissCancellation": {
     "message": "Termin behalten und Hinweis verwerfen"
@@ -178,12 +289,22 @@
     }
   },
   "cancellationDeleted": {
-    "message": "Der Termin wurde aus dem Kalender entfernt."
+    "message": "Der Termin wurde entfernt und die Absage-E-Mail als gelesen markiert."
+  },
+  "cancellationDeletedMailUnread": {
+    "message": "Der Termin wurde entfernt, aber die Absage-E-Mail konnte nicht als gelesen markiert werden."
   },
   "cancellationsDeleted": {
-    "message": "$COUNT$ abgesagte(n) Termin(e) entfernt.",
+    "message": "$COUNT$ abgesagte(n) Termin(e) entfernt und ihre E-Mails als gelesen markiert.",
     "placeholders": {
       "count": { "content": "$1" }
+    }
+  },
+  "cancellationsDeletedMailUnread": {
+    "message": "$DELETED$ Termin(e) entfernt; $UNREAD$ E-Mail(s) konnten nicht als gelesen markiert werden.",
+    "placeholders": {
+      "deleted": { "content": "$1" },
+      "unread": { "content": "$2" }
     }
   },
   "cancellationsDeletePartial": {
@@ -212,6 +333,13 @@
       "total": { "content": "$2" }
     }
   },
+  "reviewPosition": {
+    "message": "$CURRENT$ von $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
   "untitledEvent": {
     "message": "Termin ohne Titel"
   },
@@ -223,6 +351,15 @@
   },
   "backToCancellationList": {
     "message": "Zurück zur Liste"
+  },
+  "backToReviewList": {
+    "message": "Zurück zur Liste"
+  },
+  "previousReview": {
+    "message": "Vorheriger Eintrag"
+  },
+  "nextReview": {
+    "message": "Nächster Eintrag"
   },
   "previousCancellation": {
     "message": "Vorherige Absage"
